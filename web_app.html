@@ -2227,17 +2227,28 @@
       return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
     }
 
-    function subdivideCapTriangle(tri, axis, maxEdge, depth = 0) {
-      if (depth >= 8 || triMaxEdge2D(tri, axis) <= maxEdge) return [tri];
-      const ab = midpoint3D(tri[0], tri[1]);
-      const bc = midpoint3D(tri[1], tri[2]);
-      const ca = midpoint3D(tri[2], tri[0]);
-      return [
-        ...subdivideCapTriangle([tri[0], ab, ca], axis, maxEdge, depth + 1),
-        ...subdivideCapTriangle([ab, tri[1], bc], axis, maxEdge, depth + 1),
-        ...subdivideCapTriangle([ca, bc, tri[2]], axis, maxEdge, depth + 1),
-        ...subdivideCapTriangle([ab, bc, ca], axis, maxEdge, depth + 1),
-      ];
+    function subdivideCapTriangle(tri, axis, maxEdge) {
+      const done = [];
+      const stack = [{ tri, depth: 0 }];
+      while (stack.length) {
+        const item = stack.pop();
+        const current = item.tri;
+        if (item.depth >= 8 || triMaxEdge2D(current, axis) <= maxEdge) {
+          done.push(current);
+          continue;
+        }
+        const ab = midpoint3D(current[0], current[1]);
+        const bc = midpoint3D(current[1], current[2]);
+        const ca = midpoint3D(current[2], current[0]);
+        const nextDepth = item.depth + 1;
+        stack.push(
+          { tri: [current[0], ab, ca], depth: nextDepth },
+          { tri: [ab, current[1], bc], depth: nextDepth },
+          { tri: [ca, bc, current[2]], depth: nextDepth },
+          { tri: [ab, bc, ca], depth: nextDepth }
+        );
+      }
+      return done;
     }
 
     function capTriangleCentroid(tri) {
@@ -2370,7 +2381,9 @@
       if (!sockets.length) return partTriangles;
       const withSockets = partTriangles.slice();
       for (const socket of sockets) {
-        withSockets.push(...makeSocketGeometry(socket, axis, inwardSign));
+        for (const tri of makeSocketGeometry(socket, axis, inwardSign)) {
+          withSockets.push(tri);
+        }
       }
       return withSockets;
     }
@@ -2467,14 +2480,14 @@
       const segments = [];
       for (const tri of triangles) {
         const poly = [tri[0], tri[1], tri[2]];
-        negative.push(...polygonToTriangles(clipPolygon(poly, axis, position, true)));
-        positive.push(...polygonToTriangles(clipPolygon(poly, axis, position, false)));
+        for (const triOut of polygonToTriangles(clipPolygon(poly, axis, position, true))) negative.push(triOut);
+        for (const triOut of polygonToTriangles(clipPolygon(poly, axis, position, false))) positive.push(triOut);
         const crossing = splitIntersectionSegment(tri, axis, position);
         if (crossing) segments.push(crossing);
       }
       const loops = buildLoopsForSplit(segments);
-      negative.push(...capTriangles(loops, axis, 1, sockets));
-      positive.push(...capTriangles(loops, axis, -1, sockets));
+      for (const triOut of capTriangles(loops, axis, 1, sockets)) negative.push(triOut);
+      for (const triOut of capTriangles(loops, axis, -1, sockets)) positive.push(triOut);
       return {
         negative: addSocketGeometry(negative, sockets, axis, -1),
         positive: addSocketGeometry(positive, sockets, axis, 1),
@@ -2830,7 +2843,7 @@
       try {
         statusBox.textContent = 'Processing STL in browser. This can take about a minute...';
         await new Promise(resolve => setTimeout(resolve, 20));
-        const result = buildClientSplitPackage();
+        const result = await buildClientSplitPackage();
         const url = downloadBlob(result.zip, result.zipName);
         const r = result.report;
         statusBox.innerHTML = `Done. ZIP download started.<br>Parts: ${r.parts.length}<br>Pins: ${r.pins.count}<br>Sockets: ${r.socket_holes.status}<br><br><a href="${url}" download="${result.zipName}">Download ZIP package again</a>`;
