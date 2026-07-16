@@ -5,6 +5,7 @@ outputs/
 _archive/
 vendor/
 .git_locked_empty/
+tools/
 
 *.zip
 *.log
