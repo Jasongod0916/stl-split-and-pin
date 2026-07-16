@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+
+outputs/
+_archive/
+vendor/
+.git_locked_empty/
+
+*.zip
+*.log
+
+.DS_Store
+Thumbs.db

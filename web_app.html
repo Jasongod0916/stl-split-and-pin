@@ -1,0 +1,2150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STL Splitter</title>
+  <style>
+    :root { color-scheme: light; --bg:#f5f6f8; --panel:#fff; --ink:#20242a; --muted:#68707c; --line:#d9dde4; --accent:#0b6bcb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:14px/1.4 "Segoe UI", Arial, sans-serif; background:var(--bg); color:var(--ink); }
+    header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
+    header h1 { margin:0; font-size:18px; font-weight:650; }
+    input, select, button { font:inherit; }
+    button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:7px 10px; cursor:pointer; }
+    button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    main { display:grid; grid-template-columns: 330px 1fr; min-height:calc(100vh - 54px); }
+    aside { padding:14px; border-right:1px solid var(--line); background:var(--panel); overflow:auto; }
+    .field { margin-bottom:12px; }
+    .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+    .field input[type=text], .field input[type=number], .field select { width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .hint { color:var(--muted); font-size:12px; }
+    .status { white-space:pre-wrap; padding:10px; background:#eef3f8; border:1px solid #d7e3f0; border-radius:6px; min-height:54px; }
+    .workspace { padding:14px; overflow:auto; }
+    .views { display:grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap:10px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    .cut-card { position:relative; }
+    .card h2 { margin:0; padding:8px 10px; font-size:13px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; }
+    .mode-toggle { display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+    .mode-toggle button { padding:3px 8px; font-size:12px; line-height:1.2; }
+    .mode-toggle button.active { background:#0b6bcb; border-color:#0b6bcb; color:#fff; }
+    .mode-toggle button.work { background:#eef6ff; border-color:#9dccff; color:#0b4c91; }
+    .mode-toggle button.danger { color:#9b1c1c; border-color:#f1b0b7; }
+    canvas { display:block; width:100%; height:230px; background:linear-gradient(#ffffff, #f1f4f7); }
+    #orbitCanvas { height:230px; cursor:grab; background:radial-gradient(circle at 50% 35%, #ffffff, #edf1f5); }
+    #orbitCanvas:active { cursor:grabbing; }
+    .cut-card { grid-column: 1 / -1; }
+    .context-menu { position:absolute; z-index:10; display:none; min-width:116px; padding:4px; background:#fff; border:1px solid #cfd7e3; border-radius:6px; box-shadow:0 8px 24px rgba(15,23,42,0.16); }
+    .context-menu button { display:block; width:100%; padding:7px 10px; border:0; border-radius:4px; background:#fff; text-align:left; }
+    .context-menu button:hover { background:#eef6ff; }
+    .context-menu button.danger { color:#9b1c1c; }
+    #cutCanvas { height:400px; cursor:crosshair; }
+    .pin-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .pin { border:1px solid var(--line); border-radius:999px; padding:4px 8px; background:#fff; }
+    .pin.selected { box-shadow:0 0 0 2px rgba(11,107,203,0.28); border-color:#0b6bcb; }
+    .pin.warn { border-color:#facc15; background:#fffbe6; color:#713f12; }
+    .pin.danger { border-color:#e03131; background:#fff0f0; color:#9b1c1c; }
+    .snap-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; margin-top:8px; }
+    .snap-grid button { padding:5px 6px; font-size:12px; }
+    .snap-grid button.active { background:#0b6bcb; border-color:#0b6bcb; color:#fff; }
+    .readout { margin-top:6px; color:var(--muted); font-size:12px; min-height:18px; }
+    .slider-wrap { position:relative; padding-bottom:34px; }
+    .snap-ticks { position:absolute; left:0; right:0; top:31px; height:26px; border-top:1px solid #b9c6d3; pointer-events:none; }
+    .snap-tick { position:absolute; top:0; transform:translateX(-50%); color:#4b5f76; font-size:11px; line-height:1.2; text-align:center; padding-top:12px; }
+    .snap-tick::before { content:""; position:absolute; left:50%; top:-6px; transform:translateX(-50%); width:2px; height:12px; background:#4f86c6; border-radius:99px; }
+    .snap-tick::after { content:""; position:absolute; left:50%; top:-3px; transform:translate(-50%,-50%); width:0; height:0; border-radius:99px; background:#e03131; }
+    .snap-tick.active { color:#e03131; font-weight:700; }
+    .snap-tick.active::before { background:#e03131; width:3px; height:16px; top:-8px; }
+    .snap-tick.active::after { width:9px; height:9px; }
+    .measure { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; font-size:12px; }
+    .measure div { padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+    .modal-backdrop { position:fixed; inset:0; z-index:100; display:none; place-items:center; padding:24px; background:rgba(15,23,42,0.38); }
+    .modal { width:min(560px, 100%); max-height:min(760px, calc(100vh - 48px)); overflow:auto; background:#fff; border:1px solid #cfd7e3; border-radius:10px; box-shadow:0 24px 72px rgba(15,23,42,0.28); }
+    .modal header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:16px 18px; border-bottom:1px solid var(--line); }
+    .modal header h3 { margin:0; font-size:18px; }
+    .modal header p { margin:4px 0 0; color:var(--muted); font-size:12px; }
+    .modal-body { padding:14px 18px; display:grid; gap:12px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+    .summary-item { border:1px solid var(--line); border-radius:8px; padding:9px 10px; background:#f8fafc; }
+    .summary-item span { display:block; color:var(--muted); font-size:11px; margin-bottom:2px; }
+    .summary-item strong { font-size:14px; }
+    .summary-panel { border:1px solid var(--line); border-radius:8px; padding:10px; background:#fff; }
+    .summary-panel h4 { margin:0 0 8px; font-size:13px; }
+    .summary-list { margin:0; padding-left:18px; }
+    .summary-list li { margin:4px 0; }
+    .summary-ok { color:#18794e; }
+    .summary-warn { border-color:#ffd08a; background:#fff8e8; color:#7a4a00; }
+    .summary-danger { border-color:#f1a4a4; background:#fff0f0; color:#9b1c1c; }
+    .modal-actions { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px 16px; border-top:1px solid var(--line); }
+    #posRange { width:100%; display:block; margin:6px 0 8px; }
+    #posText { width:100%; }
+    @media (max-width: 980px) { main { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } .views { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>STL Splitter</h1>
+    <span class="hint">Pick cut line, click holes, process</span>
+  </header>
+  <main>
+    <aside>
+      <div class="field">
+        <label>STL path</label>
+        <div style="display:grid; grid-template-columns:1fr auto; gap:8px;">
+          <input id="path" type="text" value="C:\A1Mini_STL_Splitter\test.stl">
+          <button id="openStlBtn" type="button">Open STL</button>
+        </div>
+      </div>
+      <button id="loadBtn">Load STL</button>
+      <div class="row" style="margin-top:12px">
+        <div class="field">
+          <label>Cut axis</label>
+          <select id="axis"><option value="x">X</option><option value="y" selected>Y</option><option value="z">Z</option></select>
+        </div>
+        <div class="field">
+          <label>Rotate Z</label>
+          <input id="rotateZ" type="number" value="0" step="1">
+        </div>
+      </div>
+      <div class="field">
+        <label>Cut position</label>
+        <div class="slider-wrap">
+          <input id="posRange" type="range" min="0" max="1" step="0.01" value="0.5">
+          <div id="snapTicks" class="snap-ticks"></div>
+        </div>
+        <input id="posText" type="number" step="0.01">
+        <div class="snap-grid">
+          <button type="button" class="active" data-division="2">1/2</button>
+          <button type="button" data-division="3">1/3</button>
+          <button type="button" data-division="4">1/4</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Hole radius mm</label>
+          <input id="pinRadius" type="number" value="3" step="0.1">
+        </div>
+        <div class="field">
+          <label>Hole depth mm</label>
+          <input id="socketDepth" type="number" value="6.2" step="0.1">
+        </div>
+      </div>
+      <div class="field">
+        <label>Tolerance</label>
+        <select id="toleranceMode">
+          <option value="0.2" selected>PLA default (+0.2 mm)</option>
+          <option value="0">No clearance (0 mm)</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="hint">Move: pan view. Draw: create holes. Select: choose, drag, copy-place holes.</div>
+        <div id="cursorReadout" class="readout">Cursor: -</div>
+        <div class="measure">
+          <div id="faceSize">Face: -</div>
+          <div id="edgeDistance">Edge: -</div>
+        </div>
+        <div id="pins" class="pin-list"></div>
+      </div>
+      <div class="row">
+        <button id="clearPins">Clear pins</button>
+        <button id="processBtn" class="primary">Split and cut holes</button>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>Status</label>
+        <div id="status" class="status">Load the STL to begin.</div>
+      </div>
+    </aside>
+    <section class="workspace">
+      <div class="views">
+        <div class="card cut-card"><h2>Cut Face <span class="mode-toggle"><button id="cutMoveMode" class="active" type="button">Move</button><button id="cutPointMode" type="button">Draw</button><button id="cutSelectMode" type="button">Select</button></span></h2><canvas id="cutCanvas"></canvas><div id="pinContextMenu" class="context-menu"><button id="menuCopyPin" type="button">Copy</button><button id="menuDeletePin" class="danger" type="button">Delete</button></div></div>
+        <div class="card"><h2>3D Orbit <span>drag / wheel</span></h2><canvas id="orbitCanvas"></canvas></div>
+        <div class="card"><h2>Top <span>XY</span></h2><canvas id="top"></canvas></div>
+        <div class="card"><h2>Front <span>XZ</span></h2><canvas id="front"></canvas></div>
+        <div class="card"><h2>Back <span>XZ</span></h2><canvas id="back"></canvas></div>
+        <div class="card"><h2>Left <span>YZ</span></h2><canvas id="left"></canvas></div>
+        <div class="card"><h2>Right <span>YZ</span></h2><canvas id="right"></canvas></div>
+      </div>
+    </section>
+  </main>
+  <div id="summaryModal" class="modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="summaryTitle">
+      <header>
+        <div>
+          <h3 id="summaryTitle">Split Summary</h3>
+          <p id="summarySubtitle">Review settings before output.</p>
+        </div>
+      </header>
+      <div id="summaryBody" class="modal-body"></div>
+      <div class="modal-actions">
+        <button id="summaryCancel" type="button">Cancel</button>
+        <button id="summaryConfirm" class="primary" type="button">Confirm output</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const state = { triangles: [], vertices: [], min:[0,0,0], max:[1,1,1], size:[1,1,1], pins: [], selectedPin:-1, cursorPoint: null, snapPoint: null, snapGuides: [], radiusSnap:null, cutBase: null, cutBaseSize: null, sectionSegments: null, sectionKey: '', pendingHole: null, previewRadius: null, placingCopy:null, cutZoom:1, cutPan:[0,0], cutPanning:false, pinDragging:false, pinInteraction:false, cutMoved:false, cutLast:[0,0], cutMode:'move', division:2 };
+    const orbit = { gl:null, program:null, buffers:null, yaw:-0.65, pitch:0.55, distance:1, dragging:false, lastX:0, lastY:0 };
+    const orthoViews = {};
+    const axisIndex = {x:0,y:1,z:2};
+    const axisNames = ['x','y','z'];
+    const pathInput = document.getElementById('path');
+    const axisInput = document.getElementById('axis');
+    const posRange = document.getElementById('posRange');
+    const posText = document.getElementById('posText');
+    const statusBox = document.getElementById('status');
+    const pinsBox = document.getElementById('pins');
+
+    function parseBinarySTL(buffer) {
+      const dv = new DataView(buffer);
+      const count = dv.getUint32(80, true);
+      const expected = 84 + count * 50;
+      if (expected !== buffer.byteLength) throw new Error('Only binary STL is supported in the interactive preview.');
+      const tris = [];
+      const verts = [];
+      let o = 84;
+      for (let i=0;i<count;i++,o+=50) {
+        const tri = [];
+        for (let v=0; v<3; v++) {
+          const p = [dv.getFloat32(o+12+v*12,true), dv.getFloat32(o+16+v*12,true), dv.getFloat32(o+20+v*12,true)];
+          tri.push(p); verts.push(p);
+        }
+        tris.push(tri);
+      }
+      return {tris, verts};
+    }
+
+    function computeBounds(verts) {
+      const mn = [Infinity,Infinity,Infinity], mx = [-Infinity,-Infinity,-Infinity];
+      for (const p of verts) for (let i=0;i<3;i++) { mn[i]=Math.min(mn[i],p[i]); mx[i]=Math.max(mx[i],p[i]); }
+      return {mn, mx, size: mx.map((v,i)=>v-mn[i])};
+    }
+
+    async function loadModel() {
+      statusBox.textContent = 'Loading STL...';
+      const url = '/api/stl?path=' + encodeURIComponent(pathInput.value);
+      const buffer = await (await fetch(url)).arrayBuffer();
+      const parsed = parseBinarySTL(buffer);
+      state.triangles = parsed.tris;
+      state.vertices = parsed.verts;
+      const b = computeBounds(parsed.verts);
+      state.min = b.mn; state.max = b.mx; state.size = b.size; state.pins = []; state.selectedPin = -1;
+      const longest = state.size.indexOf(Math.max(...state.size));
+      axisInput.value = axisNames[longest];
+      posRange.min = state.min[longest]; posRange.max = state.max[longest]; posRange.value = (state.min[longest]+state.max[longest])/2;
+      posText.value = Number(posRange.value).toFixed(3);
+      statusBox.textContent = `Loaded ${state.triangles.length.toLocaleString()} triangles\nSize: ${state.size.map(v=>v.toFixed(2)).join(' x ')} mm`;
+      setupOrbit();
+      setupOrthoViews();
+      drawAll();
+      updateSnapTicks();
+      refreshSectionSegments();
+    }
+
+    function mat4Identity() {
+      return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+    }
+
+    function mat4Perspective(fovy, aspect, near, far) {
+      const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+      return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0];
+    }
+
+    function mat4LookAt(eye, center, up) {
+      let zx = eye[0]-center[0], zy = eye[1]-center[1], zz = eye[2]-center[2];
+      let zl = Math.hypot(zx,zy,zz) || 1; zx/=zl; zy/=zl; zz/=zl;
+      let xx = up[1]*zz - up[2]*zy, xy = up[2]*zx - up[0]*zz, xz = up[0]*zy - up[1]*zx;
+      let xl = Math.hypot(xx,xy,xz) || 1; xx/=xl; xy/=xl; xz/=xl;
+      const yx = zy*xz - zz*xy, yy = zz*xx - zx*xz, yz = zx*xy - zy*xx;
+      return [
+        xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
+        -(xx*eye[0]+xy*eye[1]+xz*eye[2]),
+        -(yx*eye[0]+yy*eye[1]+yz*eye[2]),
+        -(zx*eye[0]+zy*eye[1]+zz*eye[2]), 1
+      ];
+    }
+
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+      return shader;
+    }
+
+    function setupOrbit() {
+      const canvas = document.getElementById('orbitCanvas');
+      const gl = canvas.getContext('webgl', { antialias:true, alpha:false });
+      if (!gl) {
+        statusBox.textContent += '\nWebGL is not available in this browser.';
+        return;
+      }
+      orbit.gl = gl;
+      if (!orbit.program) {
+        const vs = `
+          attribute vec3 aPosition;
+          attribute vec3 aNormal;
+          uniform mat4 uProjection;
+          uniform mat4 uView;
+          uniform vec3 uCenter;
+          uniform float uMinZ;
+          uniform float uScale;
+          varying vec3 vNormal;
+          varying vec3 vPos;
+          void main() {
+            vec3 raw = vec3(aPosition.x - uCenter.x, aPosition.z - uMinZ, -(aPosition.y - uCenter.y));
+            vec3 p = raw * uScale;
+            vNormal = normalize(vec3(aNormal.x, aNormal.z, -aNormal.y));
+            vPos = p;
+            gl_Position = uProjection * uView * vec4(p, 1.0);
+          }
+        `;
+      const fs = `
+          precision mediump float;
+          varying vec3 vNormal;
+          varying vec3 vPos;
+          void main() {
+            vec3 n = normalize(vNormal);
+            vec3 light = normalize(vec3(0.35, 0.55, 0.95));
+            float diffuse = max(abs(dot(n, light)), 0.0);
+            float topLight = max(abs(n.y), 0.0) * 0.12;
+            float rim = pow(1.0 - abs(n.z), 2.0) * 0.08;
+            vec3 base = vec3(0.66, 0.67, 0.66);
+            vec3 color = base * (0.58 + diffuse * 0.34 + topLight) + rim;
+            gl_FragColor = vec4(color, 1.0);
+          }
+      `;
+      const gridVs = `
+        attribute vec3 aPosition;
+        uniform mat4 uProjection;
+        uniform mat4 uView;
+        void main() {
+          gl_Position = uProjection * uView * vec4(aPosition, 1.0);
+        }
+      `;
+      const gridFs = `
+        precision mediump float;
+        uniform vec4 uColor;
+        void main() {
+          gl_FragColor = uColor;
+        }
+      `;
+      const program = gl.createProgram();
+      gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vs));
+      gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+      orbit.program = program;
+      const gridProgram = gl.createProgram();
+      gl.attachShader(gridProgram, createShader(gl, gl.VERTEX_SHADER, gridVs));
+      gl.attachShader(gridProgram, createShader(gl, gl.FRAGMENT_SHADER, gridFs));
+      gl.linkProgram(gridProgram);
+      if (!gl.getProgramParameter(gridProgram, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(gridProgram));
+      orbit.gridProgram = gridProgram;
+      }
+
+      const targetTriangles = 900000;
+      const step = Math.max(1, Math.floor(state.triangles.length / targetTriangles));
+      const selectedCount = Math.ceil(state.triangles.length / step);
+      const positions = new Float32Array(selectedCount * 9);
+      const normals = new Float32Array(selectedCount * 9);
+      let offset = 0;
+      for (let i=0; i<state.triangles.length; i+=step) {
+        const tri = state.triangles[i];
+        const n = triangleNormal(tri);
+        for (let j=0; j<3; j++) {
+          positions[offset] = tri[j][0]; normals[offset++] = n[0];
+          positions[offset] = tri[j][1]; normals[offset++] = n[1];
+          positions[offset] = tri[j][2]; normals[offset++] = n[2];
+        }
+      }
+      const posBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+      const normalBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
+      orbit.buffers = { posBuffer, normalBuffer, count:selectedCount*3 };
+      orbit.gridBuffer = createGridBuffer(gl);
+      orbit.cutPlaneBuffer = gl.createBuffer();
+      orbit.holePreviewBuffer = gl.createBuffer();
+      orbit.distance = 3.0;
+      renderOrbit();
+    }
+
+    function createGridBuffer(gl) {
+      const lines = [];
+      const half = 1.25;
+      const step = 0.125;
+      for (let v=-half; v<=half+1e-6; v+=step) {
+        lines.push(-half, 0.0, v, half, 0.0, v);
+        lines.push(v, 0.0, -half, v, 0.0, half);
+      }
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
+      return { buffer, count: lines.length / 3 };
+    }
+
+    function renderOrbit() {
+      const gl = orbit.gl, canvas = document.getElementById('orbitCanvas');
+      if (!gl || !orbit.buffers) return;
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+      const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+      if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+      gl.viewport(0,0,width,height);
+      gl.clearColor(0.94,0.96,0.98,1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      const program = orbit.program;
+      gl.useProgram(program);
+      const center = [(state.min[0]+state.max[0])/2, (state.min[1]+state.max[1])/2, (state.min[2]+state.max[2])/2];
+      const scale = 2.0 / Math.max(...state.size);
+      const cp = Math.cos(orbit.pitch), sp = Math.sin(orbit.pitch), cy = Math.cos(orbit.yaw), sy = Math.sin(orbit.yaw);
+      const eye = [orbit.distance * cp * sy, orbit.distance * sp, orbit.distance * cp * cy];
+      const projection = mat4Perspective(Math.PI / 4, width / height, 0.01, 100);
+      const view = mat4LookAt(eye, [0,0,0], [0,1,0]);
+      drawOrbitGrid(gl, projection, view);
+      gl.useProgram(program);
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uProjection'), false, new Float32Array(projection));
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uView'), false, new Float32Array(view));
+      gl.uniform3fv(gl.getUniformLocation(program, 'uCenter'), new Float32Array(center));
+      gl.uniform1f(gl.getUniformLocation(program, 'uMinZ'), state.min[2]);
+      gl.uniform1f(gl.getUniformLocation(program, 'uScale'), scale);
+      const aPosition = gl.getAttribLocation(program, 'aPosition');
+      gl.bindBuffer(gl.ARRAY_BUFFER, orbit.buffers.posBuffer);
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+      const aNormal = gl.getAttribLocation(program, 'aNormal');
+      gl.bindBuffer(gl.ARRAY_BUFFER, orbit.buffers.normalBuffer);
+      gl.enableVertexAttribArray(aNormal);
+      gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, orbit.buffers.count);
+      drawOrbitCutPlane(gl, projection, view, center, scale);
+      drawOrbitHolePreviews(gl, projection, view, center, scale);
+    }
+
+    function drawOrbitGrid(gl, projection, view) {
+      if (!orbit.gridProgram || !orbit.gridBuffer) return;
+      const program = orbit.gridProgram;
+      gl.useProgram(program);
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uProjection'), false, new Float32Array(projection));
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uView'), false, new Float32Array(view));
+      gl.uniform4fv(gl.getUniformLocation(program, 'uColor'), new Float32Array([0.42,0.46,0.50,0.34]));
+      const aPosition = gl.getAttribLocation(program, 'aPosition');
+      gl.bindBuffer(gl.ARRAY_BUFFER, orbit.gridBuffer.buffer);
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+      gl.drawArrays(gl.LINES, 0, orbit.gridBuffer.count);
+    }
+
+    function stlToOrbitPoint(p, center, scale) {
+      return [
+        (p[0] - center[0]) * scale,
+        (p[2] - state.min[2]) * scale,
+        -(p[1] - center[1]) * scale
+      ];
+    }
+
+    function cutPlaneCorners(center, scale) {
+      const ax = axisIndex[axisInput.value], pos = Number(posText.value);
+      const mn = state.min, mx = state.max;
+      const corners = [];
+      if (ax === 0) {
+        corners.push([pos, mn[1], mn[2]], [pos, mx[1], mn[2]], [pos, mx[1], mx[2]], [pos, mn[1], mx[2]]);
+      } else if (ax === 1) {
+        corners.push([mn[0], pos, mn[2]], [mx[0], pos, mn[2]], [mx[0], pos, mx[2]], [mn[0], pos, mx[2]]);
+      } else {
+        corners.push([mn[0], mn[1], pos], [mx[0], mn[1], pos], [mx[0], mx[1], pos], [mn[0], mx[1], pos]);
+      }
+      return corners.map(p => stlToOrbitPoint(p, center, scale));
+    }
+
+    function drawOrbitCutPlane(gl, projection, view, center, scale) {
+      if (!orbit.gridProgram || !orbit.cutPlaneBuffer) return;
+      const corners = cutPlaneCorners(center, scale);
+      const fill = [
+        ...corners[0], ...corners[1], ...corners[2],
+        ...corners[0], ...corners[2], ...corners[3],
+      ];
+      const outline = [
+        ...corners[0], ...corners[1],
+        ...corners[1], ...corners[2],
+        ...corners[2], ...corners[3],
+        ...corners[3], ...corners[0],
+      ];
+      const program = orbit.gridProgram;
+      gl.useProgram(program);
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uProjection'), false, new Float32Array(projection));
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uView'), false, new Float32Array(view));
+      const aPosition = gl.getAttribLocation(program, 'aPosition');
+      gl.bindBuffer(gl.ARRAY_BUFFER, orbit.cutPlaneBuffer);
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.enable(gl.DEPTH_TEST);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(fill), gl.DYNAMIC_DRAW);
+      gl.uniform4fv(gl.getUniformLocation(program, 'uColor'), new Float32Array([0.88, 0.12, 0.12, 0.18]));
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      gl.disable(gl.DEPTH_TEST);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(outline), gl.DYNAMIC_DRAW);
+      gl.uniform4fv(gl.getUniformLocation(program, 'uColor'), new Float32Array([0.88, 0.05, 0.05, 1.0]));
+      gl.lineWidth(3);
+      gl.drawArrays(gl.LINES, 0, 8);
+      gl.enable(gl.DEPTH_TEST);
+      gl.disable(gl.BLEND);
+    }
+
+    function makeCylinderLines(centerPoint, radius, depth, axis, center, scale) {
+      const length = depth * 2;
+      const half = length / 2;
+      const segments = 32;
+      const lines = [];
+      function point(angle, offset) {
+        const c = Math.cos(angle) * radius;
+        const s = Math.sin(angle) * radius;
+        const p = centerPoint.slice();
+        if (axis === 0) { p[0] += offset; p[1] += c; p[2] += s; }
+        else if (axis === 1) { p[1] += offset; p[0] += c; p[2] += s; }
+        else { p[2] += offset; p[0] += c; p[1] += s; }
+        return stlToOrbitPoint(p, center, scale);
+      }
+      for (let i=0; i<segments; i++) {
+        const a0 = i * Math.PI * 2 / segments;
+        const a1 = (i+1) * Math.PI * 2 / segments;
+        const p0 = point(a0, -half), p1 = point(a1, -half), q0 = point(a0, half), q1 = point(a1, half);
+        lines.push(...p0, ...p1, ...q0, ...q1);
+        if (i % 4 === 0) lines.push(...p0, ...q0);
+      }
+      return lines;
+    }
+
+    function drawOrbitHolePreviews(gl, projection, view, center, scale) {
+      if (!orbit.gridProgram || !orbit.holePreviewBuffer || !state.pins.length) return;
+      const axis = axisIndex[axisInput.value];
+      const depth = Number(document.getElementById('socketDepth').value);
+      let lines = [];
+      for (const pin of state.pins) {
+        lines = lines.concat(makeCylinderLines(pin, pin.radius || Number(document.getElementById('pinRadius').value), depth, axis, center, scale));
+      }
+      const program = orbit.gridProgram;
+      gl.useProgram(program);
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uProjection'), false, new Float32Array(projection));
+      gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uView'), false, new Float32Array(view));
+      gl.uniform4fv(gl.getUniformLocation(program, 'uColor'), new Float32Array([0.9,0.05,0.05,1]));
+      gl.bindBuffer(gl.ARRAY_BUFFER, orbit.holePreviewBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
+      const aPosition = gl.getAttribLocation(program, 'aPosition');
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+      gl.disable(gl.DEPTH_TEST);
+      gl.lineWidth(2);
+      gl.drawArrays(gl.LINES, 0, lines.length / 3);
+      gl.enable(gl.DEPTH_TEST);
+    }
+
+    function setupOrthoViews() {
+      for (const id of ['top','front','back','left','right']) {
+        const canvas = document.getElementById(id);
+        const gl = canvas.getContext('webgl', { antialias:true, alpha:false });
+        if (!gl) continue;
+        const vs = `
+          attribute vec3 aPosition;
+          attribute vec3 aNormal;
+          uniform vec2 uCenter;
+          uniform vec2 uScale;
+          uniform float uDepthCenter;
+          uniform float uDepthScale;
+          varying vec3 vNormal;
+          void main() {
+            vec2 xy = (aPosition.xy - uCenter) * uScale;
+            float z = (aPosition.z - uDepthCenter) * uDepthScale;
+            vNormal = aNormal;
+            gl_Position = vec4(xy, z, 1.0);
+          }
+        `;
+        const fs = `
+          precision mediump float;
+          varying vec3 vNormal;
+          void main() {
+            vec3 n = normalize(vNormal);
+            vec3 light = normalize(vec3(0.25, 0.35, 0.9));
+            float d = abs(dot(n, light));
+            vec3 base = vec3(0.66, 0.67, 0.66);
+            gl_FragColor = vec4(base * (0.62 + d * 0.34), 1.0);
+          }
+        `;
+        const lineVs = `
+          attribute vec3 aPosition;
+          uniform vec2 uCenter;
+          uniform vec2 uScale;
+          uniform float uDepthCenter;
+          uniform float uDepthScale;
+          void main() {
+            vec2 xy = (aPosition.xy - uCenter) * uScale;
+            float z = (aPosition.z - uDepthCenter) * uDepthScale;
+            gl_Position = vec4(xy, z, 1.0);
+          }
+        `;
+        const lineFs = `
+          precision mediump float;
+          uniform vec4 uColor;
+          void main() { gl_FragColor = uColor; }
+        `;
+        const program = linkProgram(gl, vs, fs);
+        const lineProgram = linkProgram(gl, lineVs, lineFs);
+        const data = buildOrthoData(id);
+        const posBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, data.positions, gl.STATIC_DRAW);
+        const normalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, data.normals, gl.STATIC_DRAW);
+        const lineBuffer = gl.createBuffer();
+        orthoViews[id] = { gl, program, lineProgram, posBuffer, normalBuffer, lineBuffer, count:data.count, bounds:data.bounds };
+      }
+      renderOrthoViews();
+    }
+
+    function linkProgram(gl, vsSource, fsSource) {
+      const program = gl.createProgram();
+      gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vsSource));
+      gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+      return program;
+    }
+
+    function viewCoord(p, n, view) {
+      if (view === 'top') return { p:[p[0], p[1], p[2]], n:[n[0], n[1], n[2]] };
+      if (view === 'front') return { p:[p[0], p[2], p[1]], n:[n[0], n[2], n[1]] };
+      if (view === 'back') return { p:[p[0], p[2], -p[1]], n:[n[0], n[2], -n[1]] };
+      if (view === 'left') return { p:[p[1], p[2], p[0]], n:[n[1], n[2], n[0]] };
+      return { p:[p[1], p[2], -p[0]], n:[n[1], n[2], -n[0]] };
+    }
+
+    function buildOrthoData(view) {
+      const targetTriangles = 260000;
+      const step = Math.max(1, Math.floor(state.triangles.length / targetTriangles));
+      const selectedCount = Math.ceil(state.triangles.length / step);
+      const positions = new Float32Array(selectedCount * 9);
+      const normals = new Float32Array(selectedCount * 9);
+      const mn = [Infinity,Infinity,Infinity], mx = [-Infinity,-Infinity,-Infinity];
+      let offset = 0;
+      for (let i=0; i<state.triangles.length; i+=step) {
+        const tri = state.triangles[i];
+        const n = triangleNormal(tri);
+        for (let j=0; j<3; j++) {
+          const v = viewCoord(tri[j], n, view);
+          for (let k=0;k<3;k++) { mn[k] = Math.min(mn[k], v.p[k]); mx[k] = Math.max(mx[k], v.p[k]); }
+          positions[offset] = v.p[0]; normals[offset++] = v.n[0];
+          positions[offset] = v.p[1]; normals[offset++] = v.n[1];
+          positions[offset] = v.p[2]; normals[offset++] = v.n[2];
+        }
+      }
+      return { positions, normals, count:selectedCount*3, bounds:{mn,mx} };
+    }
+
+    function renderOrthoViews() {
+      for (const id of Object.keys(orthoViews)) renderOrthoView(id);
+    }
+
+    function renderOrthoView(id) {
+      const view = orthoViews[id];
+      if (!view) return;
+      const { gl, program, lineProgram, bounds } = view;
+      const canvas = gl.canvas;
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+      const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+      if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+      gl.viewport(0,0,width,height);
+      gl.clearColor(0.965,0.975,0.985,1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      const spanX = bounds.mx[0] - bounds.mn[0], spanY = bounds.mx[1] - bounds.mn[1], spanZ = bounds.mx[2] - bounds.mn[2];
+      const aspect = width / height;
+      const paddedX = spanX * 1.10, paddedY = spanY * 1.10;
+      const denom = Math.max(paddedX / aspect, paddedY);
+      const scaleY = 2 / (denom || 1);
+      const scaleX = scaleY / aspect;
+      const center = [(bounds.mn[0]+bounds.mx[0])/2, (bounds.mn[1]+bounds.mx[1])/2];
+      const depthCenter = (bounds.mn[2]+bounds.mx[2])/2;
+      const depthScale = 1.8 / (spanZ || 1);
+      gl.useProgram(program);
+      gl.uniform2fv(gl.getUniformLocation(program, 'uCenter'), new Float32Array(center));
+      gl.uniform2fv(gl.getUniformLocation(program, 'uScale'), new Float32Array([scaleX, scaleY]));
+      gl.uniform1f(gl.getUniformLocation(program, 'uDepthCenter'), depthCenter);
+      gl.uniform1f(gl.getUniformLocation(program, 'uDepthScale'), depthScale);
+      let loc = gl.getAttribLocation(program, 'aPosition');
+      gl.bindBuffer(gl.ARRAY_BUFFER, view.posBuffer);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      loc = gl.getAttribLocation(program, 'aNormal');
+      gl.bindBuffer(gl.ARRAY_BUFFER, view.normalBuffer);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, view.count);
+      drawOrthoCutLine(id, center, [scaleX, scaleY], depthCenter, depthScale);
+    }
+
+    function drawOrthoCutLine(id, center, scale, depthCenter, depthScale) {
+      const view = orthoViews[id], gl = view.gl, ax = axisIndex[axisInput.value], pos = Number(posText.value);
+      const axes = id === 'top' ? [0,1] : (id === 'front' || id === 'back' ? [0,2] : [1,2]);
+      if (!axes.includes(ax)) return;
+      const b = view.bounds;
+      const line = [];
+      const depth = b.mx[2] + 1;
+      if (axes[0] === ax) line.push(pos, b.mn[1], depth, pos, b.mx[1], depth);
+      else line.push(b.mn[0], pos, depth, b.mx[0], pos, depth);
+      gl.useProgram(view.lineProgram);
+      gl.uniform2fv(gl.getUniformLocation(view.lineProgram, 'uCenter'), new Float32Array(center));
+      gl.uniform2fv(gl.getUniformLocation(view.lineProgram, 'uScale'), new Float32Array(scale));
+      gl.uniform1f(gl.getUniformLocation(view.lineProgram, 'uDepthCenter'), depthCenter);
+      gl.uniform1f(gl.getUniformLocation(view.lineProgram, 'uDepthScale'), depthScale);
+      gl.uniform4fv(gl.getUniformLocation(view.lineProgram, 'uColor'), new Float32Array([0.88,0.12,0.12,1]));
+      gl.bindBuffer(gl.ARRAY_BUFFER, view.lineBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(line), gl.DYNAMIC_DRAW);
+      const loc = gl.getAttribLocation(view.lineProgram, 'aPosition');
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      gl.lineWidth(2);
+      gl.disable(gl.DEPTH_TEST);
+      gl.drawArrays(gl.LINES, 0, 2);
+      gl.enable(gl.DEPTH_TEST);
+    }
+
+    function project(p, view) {
+      if (view === 'top') return [p[0], p[1]];
+      if (view === 'front' || view === 'back') return [p[0], p[2]];
+      return [p[1], p[2]];
+    }
+
+    function viewDepth(p, view) {
+      if (view === 'top') return p[2];
+      if (view === 'front') return p[1];
+      if (view === 'back') return -p[1];
+      if (view === 'left') return p[0];
+      return -p[0];
+    }
+
+    function triangleNormal(tri) {
+      const a = tri[0], b = tri[1], c = tri[2];
+      const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2];
+      const vx = c[0]-a[0], vy = c[1]-a[1], vz = c[2]-a[2];
+      const n = [uy*vz-uz*vy, uz*vx-ux*vz, ux*vy-uy*vx];
+      const len = Math.hypot(n[0], n[1], n[2]) || 1;
+      return [n[0]/len, n[1]/len, n[2]/len];
+    }
+
+    function viewVector(view) {
+      if (view === 'top') return [0,0,1];
+      if (view === 'front') return [0,1,0];
+      if (view === 'back') return [0,-1,0];
+      if (view === 'left') return [1,0,0];
+      return [-1,0,0];
+    }
+
+    function normalize(v) {
+      const len = Math.hypot(v[0], v[1], v[2]) || 1;
+      return [v[0] / len, v[1] / len, v[2] / len];
+    }
+
+    function viewBounds(view) {
+      const idx = view === 'top' ? [0,1] : (view === 'front' || view === 'back' ? [0,2] : [1,2]);
+      return { min:[state.min[idx[0]], state.min[idx[1]]], max:[state.max[idx[0]], state.max[idx[1]]], idx };
+    }
+
+    function drawProjection(id, view) {
+      const canvas = document.getElementById(id), ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.clientWidth * dpr; canvas.height = canvas.clientHeight * dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+      const b = viewBounds(view), pad = 16, w = canvas.clientWidth, h = canvas.clientHeight;
+      const sx = (w-pad*2)/(b.max[0]-b.min[0] || 1), sy = (h-pad*2)/(b.max[1]-b.min[1] || 1), s = Math.min(sx,sy);
+      const map = q => [pad+(q[0]-b.min[0])*s, h-pad-(q[1]-b.min[1])*s];
+      const viewDir = viewVector(view);
+      const lightDir = normalize([0.35, -0.45, 0.82]);
+      const step = Math.max(1, Math.floor(state.triangles.length / 160000));
+      const drawItems = [];
+      for (let i=0;i<state.triangles.length;i+=step) {
+        const tri3 = state.triangles[i];
+        const depth = (viewDepth(tri3[0], view) + viewDepth(tri3[1], view) + viewDepth(tri3[2], view)) / 3;
+        const normal = triangleNormal(tri3);
+        const facing = Math.abs(normal[0]*viewDir[0] + normal[1]*viewDir[1] + normal[2]*viewDir[2]);
+        const lit = Math.max(0, normal[0]*lightDir[0] + normal[1]*lightDir[1] + normal[2]*lightDir[2]);
+        const shade = Math.round(176 + facing * 22 + lit * 12);
+        drawItems.push({ tri: tri3.map(p => map(project(p, view))), depth, shade });
+      }
+      drawItems.sort((a,b) => a.depth - b.depth);
+      ctx.lineJoin = 'round';
+      for (const item of drawItems) {
+        ctx.fillStyle = `rgb(${item.shade},${item.shade},${item.shade})`;
+        ctx.strokeStyle = 'rgba(62,72,84,0.008)';
+        ctx.lineWidth = 0.08;
+        const tri = item.tri;
+        ctx.beginPath(); ctx.moveTo(tri[0][0], tri[0][1]); ctx.lineTo(tri[1][0], tri[1][1]); ctx.lineTo(tri[2][0], tri[2][1]); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      drawCutLine(ctx, view, map, b, w, h);
+    }
+
+    function drawCutLine(ctx, view, map, b, w, h) {
+      const ax = axisIndex[axisInput.value], pos = Number(posText.value);
+      const idx = b.idx;
+      ctx.strokeStyle = '#e03131'; ctx.lineWidth = 2.5;
+      if (!idx.includes(ax)) return;
+      const j = idx.indexOf(ax);
+      ctx.beginPath();
+      if (j === 0) { const x = map([pos,b.min[1]])[0]; ctx.moveTo(x,8); ctx.lineTo(x,h-8); }
+      else { const y = map([b.min[0],pos])[1]; ctx.moveTo(8,y); ctx.lineTo(w-8,y); }
+      ctx.stroke();
+    }
+
+    function cutAxes() {
+      const ax = axisIndex[axisInput.value];
+      return [0,1,2].filter(i => i !== ax);
+    }
+
+    function drawCutMap() {
+      const canvas = document.getElementById('cutCanvas'), ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.clientWidth * dpr; canvas.height = canvas.clientHeight * dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+      const [a,b] = cutAxes(), pos = Number(posText.value), ax = axisIndex[axisInput.value], tol = Math.max(1, state.size[ax] * 0.015);
+      const min = [state.min[a], state.min[b]], max = [state.max[a], state.max[b]], pad = 46, w=canvas.clientWidth, h=canvas.clientHeight;
+      const baseS = Math.min((w-pad*2)/(max[0]-min[0]||1), (h-pad*2)/(max[1]-min[1]||1));
+      const s = baseS * state.cutZoom;
+      const centerX = w / 2 + state.cutPan[0];
+      const centerY = h / 2 + state.cutPan[1];
+      const mid = [(min[0]+max[0])/2, (min[1]+max[1])/2];
+      const map = q => [centerX+(q[0]-mid[0])*s, centerY-(q[1]-mid[1])*s];
+      state.cutMap = {a,b,min,max,pad,s,w,h};
+      drawCutFaceFrame(ctx, min, max, map, true);
+      const segments = state.sectionSegments || previewSectionSegments(ax, pos);
+      const loops = buildCutLoops(segments);
+      state.cutLoops = loops;
+      drawCutLoops(ctx, loops, segments, map);
+      drawCutGuides(ctx, min, max, map, w, h);
+      drawDimensions(ctx, min, max, map);
+      if (!loops.length) drawCutFaceFrame(ctx, min, max, map, false);
+      document.getElementById('faceSize').textContent = `Face: ${(max[0]-min[0]).toFixed(1)} x ${(max[1]-min[1]).toFixed(1)} mm`;
+      state.cutBase = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      state.cutBaseSize = [canvas.width, canvas.height, dpr];
+      drawCutOverlay();
+    }
+
+    function previewSectionSegments(ax, pos) {
+      const segments = [];
+      const step = Math.max(1, Math.floor(state.triangles.length / 220000));
+      for (let i=0;i<state.triangles.length;i+=step) {
+        const seg = trianglePlaneSegment(state.triangles[i], ax, pos);
+        if (seg) segments.push(seg);
+      }
+      return segments;
+    }
+
+    async function refreshSectionSegments() {
+      const key = `${pathInput.value}|${axisInput.value}|${Number(posText.value).toFixed(4)}`;
+      state.sectionKey = key;
+      try {
+        const url = `/api/section?path=${encodeURIComponent(pathInput.value)}&axis=${encodeURIComponent(axisInput.value)}&position=${encodeURIComponent(posText.value)}`;
+        const data = await (await fetch(url)).json();
+        if (state.sectionKey !== key) return;
+        state.sectionSegments = data.segments || [];
+        drawCutMap();
+        drawPins();
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+
+    function buildCutLoops(segments) {
+      const precision = 1000;
+      const points = new Map();
+      const adjacency = new Map();
+      const edges = new Set();
+      const key = p => `${Math.round(p[0]*precision)},${Math.round(p[1]*precision)},${Math.round(p[2]*precision)}`;
+      const addPoint = p => {
+        const k = key(p);
+        if (!points.has(k)) points.set(k, p);
+        if (!adjacency.has(k)) adjacency.set(k, []);
+        return k;
+      };
+      for (const [p0, p1] of segments) {
+        const k0 = addPoint(p0), k1 = addPoint(p1);
+        if (k0 === k1) continue;
+        adjacency.get(k0).push(k1);
+        adjacency.get(k1).push(k0);
+        edges.add(k0 < k1 ? `${k0}|${k1}` : `${k1}|${k0}`);
+      }
+      const loops = [];
+      while (edges.size) {
+        const first = edges.values().next().value;
+        edges.delete(first);
+        const [start, second] = first.split('|');
+        const loop = [start, second];
+        let prev = start, curr = second;
+        for (let guard=0; guard<20000 && curr !== start; guard++) {
+          const candidates = (adjacency.get(curr) || []).filter(n => {
+            if (n === prev) return false;
+            const e = curr < n ? `${curr}|${n}` : `${n}|${curr}`;
+            return edges.has(e);
+          });
+          if (!candidates.length) break;
+          const next = candidates[0];
+          edges.delete(curr < next ? `${curr}|${next}` : `${next}|${curr}`);
+          prev = curr;
+          curr = next;
+          loop.push(curr);
+        }
+        if (loop.length > 3 && loop[loop.length - 1] === start) {
+          loops.push(loop.slice(0, -1).map(k => points.get(k)));
+        }
+      }
+      return loops;
+    }
+
+    function drawCutLoops(ctx, loops, segments, map) {
+      if (loops.length) {
+        const path = new Path2D();
+        for (const loop of loops) {
+          const first = map([loop[0][state.cutMap.a], loop[0][state.cutMap.b]]);
+          path.moveTo(first[0], first[1]);
+          for (let i=1; i<loop.length; i++) {
+            const q = map([loop[i][state.cutMap.a], loop[i][state.cutMap.b]]);
+            path.lineTo(q[0], q[1]);
+          }
+          path.closePath();
+        }
+        ctx.fillStyle = 'rgba(120,128,135,0.18)';
+        ctx.fill(path, 'evenodd');
+        ctx.strokeStyle = 'rgba(31,41,55,0.86)';
+        ctx.lineWidth = 1.45;
+        ctx.stroke(path);
+      }
+      ctx.strokeStyle = 'rgba(42,49,58,0.50)';
+      ctx.lineWidth = 0.85;
+      ctx.lineCap = 'round';
+      for (const seg of segments) {
+        const q0 = map([seg[0][state.cutMap.a], seg[0][state.cutMap.b]]);
+        const q1 = map([seg[1][state.cutMap.a], seg[1][state.cutMap.b]]);
+        ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke();
+      }
+    }
+
+    function drawCutFaceFrame(ctx, min, max, map, fillOnly) {
+      const p0 = map([min[0], min[1]]);
+      const p1 = map([max[0], max[1]]);
+      const x0 = p0[0], x1 = p1[0], y0 = p0[1], y1 = p1[1];
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.64)';
+      ctx.fillRect(x0, y1, x1-x0, y0-y1);
+      if (!fillOnly) {
+        ctx.strokeStyle = 'rgba(47,58,69,0.32)';
+        ctx.lineWidth = 1.0;
+        ctx.setLineDash([5,4]);
+        ctx.strokeRect(x0, y1, x1-x0, y0-y1);
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+
+    function drawDimensions(ctx, min, max, map) {
+      const faceW = max[0] - min[0], faceH = max[1] - min[1];
+      const p0 = map([min[0], min[1]]);
+      const p1 = map([max[0], max[1]]);
+      const x0 = p0[0], x1 = p1[0], y0 = p0[1], y1 = p1[1];
+      ctx.save();
+      ctx.strokeStyle = '#374151';
+      ctx.fillStyle = '#111827';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Segoe UI, Arial, sans-serif';
+      ctx.setLineDash([]);
+      const topY = Math.max(18, y1 - 16);
+      ctx.beginPath(); ctx.moveTo(x0, topY); ctx.lineTo(x1, topY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0, topY-4); ctx.lineTo(x0, topY+4); ctx.moveTo(x1, topY-4); ctx.lineTo(x1, topY+4); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillText(`${faceW.toFixed(1)} mm`, (x0+x1)/2, topY - 5);
+      const leftX = Math.max(18, x0 - 20);
+      ctx.beginPath(); ctx.moveTo(leftX, y0); ctx.lineTo(leftX, y1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(leftX-4, y0); ctx.lineTo(leftX+4, y0); ctx.moveTo(leftX-4, y1); ctx.lineTo(leftX+4, y1); ctx.stroke();
+      ctx.save(); ctx.translate(leftX - 9, (y0+y1)/2); ctx.rotate(-Math.PI/2); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${faceH.toFixed(1)} mm`, 0, 0); ctx.restore();
+      ctx.restore();
+    }
+
+    function drawCutOverlay() {
+      if (!state.cutMap || !state.cutBase) return;
+      const canvas = document.getElementById('cutCanvas'), ctx = canvas.getContext('2d');
+      const dpr = state.cutBaseSize?.[2] || window.devicePixelRatio || 1;
+      if (state.cutBaseSize[0] !== canvas.width || state.cutBaseSize[1] !== canvas.height) {
+        drawCutMap();
+        return;
+      }
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.putImageData(state.cutBase, 0, 0);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      const m = state.cutMap;
+      const mid = [(m.min[0]+m.max[0])/2, (m.min[1]+m.max[1])/2];
+      const centerX = m.w / 2 + state.cutPan[0];
+      const centerY = m.h / 2 + state.cutPan[1];
+      const map = q => [centerX+(q[0]-mid[0])*m.s, centerY-(q[1]-mid[1])*m.s];
+      for (let i=0; i<state.pins.length; i++) {
+        const pin = state.pins[i];
+        const q = map([pin[m.a], pin[m.b]]);
+        const safety = evaluateHoleSafety(pin);
+        const color = safety.level === 'danger' ? '#e03131' : safety.level === 'warn' ? '#facc15' : '#16a34a';
+        const fill = safety.level === 'danger' ? 'rgba(224,49,49,0.16)' : safety.level === 'warn' ? 'rgba(250,204,21,0.20)' : 'rgba(22,163,74,0.18)';
+        const radiusPx = holeRadius(pin) * m.s;
+        ctx.beginPath(); ctx.arc(q[0], q[1], radiusPx, 0, Math.PI*2);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = safety.level === 'danger' ? 3 : 2;
+        ctx.stroke();
+        drawHoleDepthPreview(ctx, q, radiusPx);
+        if (safety.level !== 'safe') {
+          ctx.fillStyle = color;
+          ctx.font = '700 12px Segoe UI, Arial, sans-serif';
+          ctx.fillText('!', q[0] + radiusPx + 6, q[1] - radiusPx - 4);
+        }
+        ctx.beginPath(); ctx.arc(q[0], q[1], 4, 0, Math.PI*2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+        if (i === state.selectedPin) {
+          ctx.setLineDash([5,4]);
+          ctx.strokeStyle = '#0b6bcb';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(q[0], q[1], radiusPx + 7, 0, Math.PI*2); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+      drawPendingHole(ctx, map);
+      drawCopyPlacement(ctx, map);
+      drawSmartGuides(ctx, map);
+      drawCrosshair(ctx, map);
+    }
+
+    function drawHoleDepthPreview(ctx, center, radiusPx) {
+      const depth = Number(document.getElementById('socketDepth').value);
+      ctx.save();
+      ctx.strokeStyle = '#e03131';
+      ctx.fillStyle = 'rgba(224,49,49,0.08)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(center[0], center[1], radiusPx, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#e03131';
+      ctx.font = '12px Segoe UI, Arial, sans-serif';
+      ctx.fillText(`D ${depth.toFixed(1)} x2`, center[0] + radiusPx + 8, center[1] + 14);
+      ctx.restore();
+    }
+
+    function drawPendingHole(ctx, map) {
+      if (!state.pendingHole || !state.cutMap) return;
+      const m = state.cutMap;
+      const center = map([state.pendingHole[m.a], state.pendingHole[m.b]]);
+      const radius = state.previewRadius || 0;
+      const previewHole = state.pendingHole.slice();
+      previewHole.radius = Math.max(0.1, radius);
+      const safety = radius > 0 ? evaluateHoleSafety(previewHole) : {level:'safe', messages:[]};
+      const color = safety.level === 'danger' ? '#e03131' : safety.level === 'warn' ? '#facc15' : '#16a34a';
+      const fill = safety.level === 'danger' ? 'rgba(224,49,49,0.10)' : safety.level === 'warn' ? 'rgba(250,204,21,0.14)' : 'rgba(22,163,74,0.12)';
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = fill;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5,4]);
+      ctx.beginPath(); ctx.arc(center[0], center[1], radius * m.s, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(center[0], center[1], 4, 0, Math.PI*2); ctx.fill();
+      if (radius > 0) {
+        ctx.fillStyle = safety.level === 'safe' ? '#111827' : color;
+        ctx.font = '12px Segoe UI, Arial, sans-serif';
+        ctx.fillText(`R ${radius.toFixed(2)} mm`, center[0] + radius * m.s + 8, center[1] - 8);
+        if (state.radiusSnap) {
+          ctx.save();
+          ctx.strokeStyle = '#f08c00';
+          ctx.fillStyle = '#d9480f';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6,4]);
+          ctx.beginPath(); ctx.arc(center[0], center[1], state.radiusSnap.radius * m.s, 0, Math.PI*2); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font = '700 12px Segoe UI, Arial, sans-serif';
+          ctx.fillText(`R ${state.radiusSnap.radius.toFixed(2)} = R ${state.radiusSnap.radius.toFixed(2)}`, center[0] + radius * m.s + 8, center[1] - 24);
+          ctx.restore();
+        }
+        if (safety.messages.length) {
+          ctx.font = '700 12px Segoe UI, Arial, sans-serif';
+          ctx.fillText(safety.messages[0], center[0] + radius * m.s + 8, center[1] + 8);
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawCopyPlacement(ctx, map) {
+      if (!state.placingCopy || !state.cutMap) return;
+      const m = state.cutMap;
+      const q = map([state.placingCopy[m.a], state.placingCopy[m.b]]);
+      const radiusPx = holeRadius(state.placingCopy) * m.s;
+      const safety = evaluateHoleSafety(state.placingCopy);
+      const color = safety.level === 'danger' ? '#e03131' : safety.level === 'warn' ? '#facc15' : '#16a34a';
+      const label = safety.level === 'safe' ? 'OK' : safety.messages[0];
+      ctx.save();
+      ctx.setLineDash([6,4]);
+      ctx.fillStyle = safety.level === 'safe' ? 'rgba(22,163,74,0.14)' : safety.level === 'warn' ? 'rgba(250,204,21,0.18)' : 'rgba(224,49,49,0.14)';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(q[0], q[1], radiusPx, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(q[0], q[1], 4, 0, Math.PI*2); ctx.fill();
+      ctx.font = '700 12px Segoe UI, Arial, sans-serif';
+      ctx.fillText(label, q[0] + radiusPx + 8, q[1] - 8);
+      ctx.restore();
+    }
+
+    function holeRadius(pin) {
+      return pin.radius || Number(document.getElementById('pinRadius').value);
+    }
+
+    function distPointToSegment2D(p, a, b) {
+      const vx = b[0] - a[0], vy = b[1] - a[1];
+      const wx = p[0] - a[0], wy = p[1] - a[1];
+      const len2 = vx*vx + vy*vy;
+      if (len2 <= 1e-9) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+      const t = Math.max(0, Math.min(1, (wx*vx + wy*vy) / len2));
+      return Math.hypot(p[0] - (a[0] + t*vx), p[1] - (a[1] + t*vy));
+    }
+
+    function pointInLoop2D(point, loop, m) {
+      let inside = false;
+      for (let i=0, j=loop.length-1; i<loop.length; j=i++) {
+        const xi = loop[i][m.a], yi = loop[i][m.b];
+        const xj = loop[j][m.a], yj = loop[j][m.b];
+        const crosses = (yi > point[1]) !== (yj > point[1]);
+        if (crosses) {
+          const xAtY = (xj - xi) * (point[1] - yi) / ((yj - yi) || 1e-9) + xi;
+          if (point[0] < xAtY) inside = !inside;
+        }
+      }
+      return inside;
+    }
+
+    function pointInCutSolid(point, m) {
+      const loops = state.cutLoops || [];
+      if (!loops.length) return true;
+      let inside = false;
+      for (const loop of loops) {
+        if (pointInLoop2D(point, loop, m)) inside = !inside;
+      }
+      return inside;
+    }
+
+    function evaluateHoleSafety(pin) {
+      const m = state.cutMap;
+      if (!m) return {level:'safe', messages:[]};
+      const radius = holeRadius(pin);
+      const point = [pin[m.a], pin[m.b]];
+      const faceW = m.max[0] - m.min[0];
+      const faceH = m.max[1] - m.min[1];
+      const messages = [];
+      let level = 'safe';
+      const setLevel = next => {
+        if (next === 'danger' || (next === 'warn' && level === 'safe')) level = next;
+      };
+
+      if (!Number.isFinite(radius) || radius <= 0) {
+        return {level:'danger', messages:['半徑不正確']};
+      }
+
+      if (!pointInCutSolid(point, m)) {
+        setLevel('danger');
+        messages.push('孔在空氣中');
+      }
+
+      const edgeClearance = Math.min(
+        point[0] - m.min[0] - radius,
+        m.max[0] - point[0] - radius,
+        point[1] - m.min[1] - radius,
+        m.max[1] - point[1] - radius
+      );
+      if (edgeClearance < 0) {
+        setLevel('danger');
+        messages.push('孔會超出截面外框');
+      } else if (edgeClearance < 2) {
+        setLevel('warn');
+        messages.push(`離外框 ${edgeClearance.toFixed(1)} mm`);
+      }
+
+      const minFace = Math.min(faceW, faceH);
+      if (radius * 2 > minFace * 0.28) {
+        setLevel('warn');
+        messages.push('孔徑偏大');
+      }
+
+      let outlineClearance = Infinity;
+      for (const seg of state.sectionSegments || []) {
+        if (!seg || seg.length < 2) continue;
+        const a = [seg[0][m.a], seg[0][m.b]];
+        const b = [seg[1][m.a], seg[1][m.b]];
+        outlineClearance = Math.min(outlineClearance, distPointToSegment2D(point, a, b) - radius);
+      }
+      if (Number.isFinite(outlineClearance)) {
+        if (outlineClearance < 0.8) {
+          setLevel('danger');
+          messages.push('太靠近模型輪廓');
+        } else if (outlineClearance < 2.5) {
+          setLevel('warn');
+          messages.push(`離輪廓 ${outlineClearance.toFixed(1)} mm`);
+        }
+      }
+
+      const axis = axisIndex[axisInput.value];
+      const pos = Number(posText.value);
+      const depth = Number(document.getElementById('socketDepth').value);
+      const shortSide = Math.min(pos - state.min[axis], state.max[axis] - pos);
+      if (Number.isFinite(depth) && depth > shortSide - 0.5) {
+        setLevel('danger');
+        messages.push('深度可能穿出較短半邊');
+      }
+
+      return {level, messages};
+    }
+
+    function drawCutGuides(ctx, min, max, map, w, h) {
+      const gx = r => map([min[0] + (max[0]-min[0]) * r, min[1]])[0];
+      const gy = r => map([min[0], min[1] + (max[1]-min[1]) * r])[1];
+      const yTop = map([min[0], max[1]])[1];
+      const yBottom = map([min[0], min[1]])[1];
+      const xLeft = map([min[0], min[1]])[0];
+      const xRight = map([max[0], min[1]])[0];
+      ctx.save();
+
+      ctx.setLineDash([6,5]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(11,107,203,0.24)';
+      const quarterRatios = [0.25, 0.75];
+      for (const r of quarterRatios) {
+        ctx.beginPath(); ctx.moveTo(gx(r), yTop); ctx.lineTo(gx(r), yBottom); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(xLeft, gy(r)); ctx.lineTo(xRight, gy(r)); ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(11,107,203,0.38)';
+      const thirdRatios = [1/3, 2/3];
+      for (const r of thirdRatios) {
+        ctx.beginPath(); ctx.moveTo(gx(r), yTop); ctx.lineTo(gx(r), yBottom); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(xLeft, gy(r)); ctx.lineTo(xRight, gy(r)); ctx.stroke();
+      }
+
+      ctx.setLineDash([9,5]);
+      ctx.strokeStyle = 'rgba(11,107,203,0.62)';
+      ctx.lineWidth = 1.25;
+      ctx.beginPath(); ctx.moveTo(gx(0.5), yTop); ctx.lineTo(gx(0.5), yBottom); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xLeft, gy(0.5)); ctx.lineTo(xRight, gy(0.5)); ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawCrosshair(ctx, map) {
+      const point = state.snapPoint || state.cursorPoint;
+      if (!point || !state.cutMap) return;
+      const m = state.cutMap;
+      const q = map([point[m.a], point[m.b]]);
+      ctx.save();
+      ctx.strokeStyle = state.snapPoint ? '#d9480f' : 'rgba(32,36,42,0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash(state.snapPoint ? [] : [4,4]);
+      ctx.beginPath(); ctx.moveTo(q[0], 0); ctx.lineTo(q[0], m.h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, q[1]); ctx.lineTo(m.w, q[1]); ctx.stroke();
+      ctx.fillStyle = state.snapPoint ? '#d9480f' : '#20242a';
+      ctx.beginPath(); ctx.arc(q[0], q[1], 4, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawSmartGuides(ctx, map) {
+      if (!state.cutMap || !state.snapGuides || !state.snapGuides.length) return;
+      const m = state.cutMap;
+      const marker = (x, y) => {
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      ctx.save();
+      ctx.strokeStyle = '#f08c00';
+      ctx.fillStyle = '#d9480f';
+      ctx.lineWidth = 1.5;
+      ctx.font = '700 12px Segoe UI, Arial, sans-serif';
+      for (const guide of state.snapGuides) {
+        if (guide.type === 'align') {
+          const pin = state.pins[guide.pin];
+          const otherAxis = guide.axis === m.a ? m.b : m.a;
+          const distance = pin && guide.cross !== undefined ? `${Math.abs(guide.cross - pin[otherAxis]).toFixed(1)} mm` : 'aligned';
+          ctx.setLineDash([7,4]);
+          if (guide.axis === m.a) {
+            const x = map([guide.value, m.min[1]])[0];
+            ctx.beginPath(); ctx.moveTo(x, m.pad); ctx.lineTo(x, m.h - m.pad); ctx.stroke();
+            ctx.fillText(distance, x + 6, m.pad + 18);
+          } else if (guide.axis === m.b) {
+            const y = map([m.min[0], guide.value])[1];
+            ctx.beginPath(); ctx.moveTo(m.pad, y); ctx.lineTo(m.w - m.pad, y); ctx.stroke();
+            ctx.fillText(distance, m.pad + 8, y - 8);
+          }
+        } else if (guide.type === 'midpoint') {
+          const p1 = state.pins[guide.pins[0]];
+          const p2 = state.pins[guide.pins[1]];
+          if (!p1 || !p2) continue;
+          ctx.setLineDash([]);
+          if (guide.axis === m.a) {
+            const y = map([m.min[0], guide.cross])[1];
+            const x1 = map([p1[m.a], m.min[1]])[0];
+            const xMid = map([guide.value, m.min[1]])[0];
+            const x2 = map([p2[m.a], m.min[1]])[0];
+            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(xMid, y); ctx.lineTo(x2, y); ctx.stroke();
+            marker(x1, y); marker(xMid, y); marker(x2, y);
+            const d = Math.abs(guide.value - p1[m.a]).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, Math.min(x1, x2) + Math.abs(x2 - x1) / 2 + 8, y - 8);
+          } else if (guide.axis === m.b) {
+            const x = map([guide.cross, m.min[1]])[0];
+            const y1 = map([m.min[0], p1[m.b]])[1];
+            const yMid = map([m.min[0], guide.value])[1];
+            const y2 = map([m.min[0], p2[m.b]])[1];
+            ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, yMid); ctx.lineTo(x, y2); ctx.stroke();
+            marker(x, y1); marker(x, yMid); marker(x, y2);
+            const d = Math.abs(guide.value - p1[m.b]).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, x + 8, Math.min(y1, y2) + Math.abs(y2 - y1) / 2 - 8);
+          }
+        } else if (guide.type === 'spacing') {
+          const p1 = state.pins[guide.pins[0]];
+          const p2 = state.pins[guide.pins[1]];
+          if (!p1 || !p2) continue;
+          ctx.setLineDash([]);
+          if (guide.axis === m.a) {
+            const y = map([m.min[0], guide.cross])[1];
+            const x1 = map([p1[m.a], m.min[1]])[0];
+            const x2 = map([p2[m.a], m.min[1]])[0];
+            const xNew = map([guide.value, m.min[1]])[0];
+            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.lineTo(xNew, y); ctx.stroke();
+            marker(x1, y); marker(x2, y); marker(xNew, y);
+            const d = Math.abs(p2[m.a] - p1[m.a]).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, Math.min(x1, x2, xNew) + 8, y - 8);
+          } else if (guide.axis === m.b) {
+            const x = map([guide.cross, m.min[1]])[0];
+            const y1 = map([m.min[0], p1[m.b]])[1];
+            const y2 = map([m.min[0], p2[m.b]])[1];
+            const yNew = map([m.min[0], guide.value])[1];
+            ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.lineTo(x, yNew); ctx.stroke();
+            marker(x, y1); marker(x, y2); marker(x, yNew);
+            const d = Math.abs(p2[m.b] - p1[m.b]).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, x + 8, Math.min(y1, y2, yNew) - 8);
+          }
+        } else if (guide.type === 'localCenter') {
+          ctx.setLineDash([]);
+          if (guide.axis === m.a) {
+            const y = map([m.min[0], guide.cross])[1];
+            const x1 = map([guide.lo, m.min[1]])[0];
+            const xMid = map([guide.value, m.min[1]])[0];
+            const x2 = map([guide.hi, m.min[1]])[0];
+            ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(xMid, y); ctx.lineTo(x2, y); ctx.stroke();
+            marker(x1, y); marker(xMid, y); marker(x2, y);
+            const d = Math.abs(guide.value - guide.lo).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, xMid + 8, y - 8);
+          } else if (guide.axis === m.b) {
+            const x = map([guide.cross, m.min[1]])[0];
+            const y1 = map([m.min[0], guide.lo])[1];
+            const yMid = map([m.min[0], guide.value])[1];
+            const y2 = map([m.min[0], guide.hi])[1];
+            ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, yMid); ctx.lineTo(x, y2); ctx.stroke();
+            marker(x, y1); marker(x, yMid); marker(x, y2);
+            const d = Math.abs(guide.value - guide.lo).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, x + 8, yMid - 8);
+          }
+        } else if (guide.type === 'edgeEqual') {
+          ctx.setLineDash([]);
+          if (guide.axis === m.a) {
+            const y = map([m.min[0], guide.cross])[1];
+            const xL = map([m.min[0], m.min[1]])[0];
+            const x = map([guide.value, m.min[1]])[0];
+            const xR = map([m.max[0], m.min[1]])[0];
+            ctx.beginPath(); ctx.moveTo(xL, y); ctx.lineTo(x, y); ctx.lineTo(xR, y); ctx.stroke();
+            marker(xL, y); marker(x, y); marker(xR, y);
+            const d = Math.abs(guide.value - m.min[0]).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, x + 8, y - 8);
+          } else if (guide.axis === m.b) {
+            const x = map([guide.cross, m.min[1]])[0];
+            const yB = map([m.min[0], m.min[1]])[1];
+            const y = map([m.min[0], guide.value])[1];
+            const yT = map([m.min[0], m.max[1]])[1];
+            ctx.beginPath(); ctx.moveTo(x, yB); ctx.lineTo(x, y); ctx.lineTo(x, yT); ctx.stroke();
+            marker(x, yB); marker(x, y); marker(x, yT);
+            const d = Math.abs(guide.value - m.min[1]).toFixed(1);
+            ctx.fillText(`${d} mm = ${d} mm`, x + 8, y - 8);
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    function localSolidSpan(point, axis, m) {
+      const loops = state.cutLoops || [];
+      if (!loops.length) return null;
+      const other = axis === m.a ? m.b : m.a;
+      const cross = point[other];
+      const values = [];
+      for (const loop of loops) {
+        for (let i=0, j=loop.length-1; i<loop.length; j=i++) {
+          const p = loop[i], q = loop[j];
+          const pOther = p[other], qOther = q[other];
+          if ((pOther > cross) === (qOther > cross)) continue;
+          const t = (cross - pOther) / (qOther - pOther);
+          values.push(p[axis] + t * (q[axis] - p[axis]));
+        }
+      }
+      values.sort((a,b) => a-b);
+      for (let i=0; i+1<values.length; i+=2) {
+        const lo = values[i], hi = values[i+1];
+        if (point[axis] >= lo - 0.001 && point[axis] <= hi + 0.001) {
+          return { lo, hi, mid:(lo + hi) / 2, cross };
+        }
+      }
+      return null;
+    }
+
+    function snapCutPoint(point, ignorePinIndex = -1) {
+      if (!state.cutMap) return { point, label: '', guides: [] };
+      const m = state.cutMap, snapped = point.slice(), labels = [], guides = [];
+      const threshold = 7 / m.s;
+      for (const axis of [m.a, m.b]) {
+        const lo = state.min[axis], span = state.size[axis];
+        const local = localSolidSpan(point, axis, m);
+        if (local && Math.abs(point[axis] - local.mid) <= threshold) {
+          snapped[axis] = local.mid;
+          labels.push('snap');
+          guides.push({ type:'localCenter', axis, value:local.mid, lo:local.lo, hi:local.hi, cross:local.cross });
+        }
+        const candidates = [
+          ['1/2', lo + span * 0.5],
+          ['1/3', lo + span / 3],
+          ['2/3', lo + span * 2 / 3],
+          ['1/4', lo + span * 0.25],
+          ['3/4', lo + span * 0.75],
+        ];
+        for (const [label, value] of candidates) {
+          if (Math.abs(point[axis] - value) <= threshold) {
+            snapped[axis] = value;
+            labels.push(`${axisNames[axis]} ${label}`);
+            if (label === '1/2') {
+              const otherAxis = axis === m.a ? m.b : m.a;
+              guides.push({ type:'edgeEqual', axis, value, crossAxis:otherAxis });
+            }
+            break;
+          }
+        }
+        for (let i=0; i<state.pins.length; i++) {
+          if (i === ignorePinIndex) continue;
+          const pin = state.pins[i];
+          if (Math.abs(point[axis] - pin[axis]) <= threshold) {
+            snapped[axis] = pin[axis];
+            labels.push('snap');
+            const otherAxis = axis === m.a ? m.b : m.a;
+            guides.push({ type:'align', axis, value:pin[axis], crossAxis:otherAxis, pin:i });
+            break;
+          }
+        }
+        let midpointHit = false;
+        for (let i=0; i<state.pins.length && !midpointHit; i++) {
+          if (i === ignorePinIndex) continue;
+          for (let j=i+1; j<state.pins.length; j++) {
+            if (j === ignorePinIndex) continue;
+            const mid = (state.pins[i][axis] + state.pins[j][axis]) / 2;
+            if (Math.abs(point[axis] - mid) <= threshold) {
+              snapped[axis] = mid;
+              labels.push('snap');
+              const otherAxis = axis === m.a ? m.b : m.a;
+              guides.push({ type:'midpoint', axis, value:mid, crossAxis:otherAxis, pins:[i,j] });
+              midpointHit = true;
+              break;
+            }
+          }
+        }
+        if (!midpointHit) {
+          let spacingHit = false;
+          for (let i=0; i<state.pins.length && !spacingHit; i++) {
+            if (i === ignorePinIndex) continue;
+            for (let j=0; j<state.pins.length; j++) {
+              if (j === i || j === ignorePinIndex) continue;
+              const step = state.pins[j][axis] - state.pins[i][axis];
+              if (Math.abs(step) < 0.001) continue;
+              const target = state.pins[j][axis] + step;
+              if (target < lo || target > lo + span) continue;
+              if (Math.abs(point[axis] - target) <= threshold) {
+                snapped[axis] = target;
+                labels.push('snap');
+                const otherAxis = axis === m.a ? m.b : m.a;
+                guides.push({ type:'spacing', axis, value:target, crossAxis:otherAxis, pins:[i,j] });
+                spacingHit = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      for (const guide of guides) {
+        if (guide.crossAxis !== undefined) guide.cross = snapped[guide.crossAxis];
+      }
+      return { point: snapped, label: labels.join(', '), guides };
+    }
+
+    function snapHoleRadius(radius, ignorePinIndex = -1) {
+      if (!state.cutMap) return { radius, snap:null };
+      const threshold = 7 / state.cutMap.s;
+      let best = radius;
+      let snap = null;
+      for (let i=0; i<state.pins.length; i++) {
+        if (i === ignorePinIndex) continue;
+        const r = holeRadius(state.pins[i]);
+        if (Math.abs(radius - r) <= threshold) {
+          best = r;
+          snap = { type:'radius', radius:r, pin:i };
+          break;
+        }
+      }
+      return { radius:best, snap };
+    }
+
+    function trianglePlaneSegment(tri, axis, pos) {
+      const points = [];
+      for (let i=0;i<3;i++) {
+        const p = tri[i], q = tri[(i+1)%3];
+        const dp = p[axis] - pos, dq = q[axis] - pos;
+        if (Math.abs(dp) < 1e-5 && Math.abs(dq) < 1e-5) {
+          points.push(p, q);
+        } else if (Math.abs(dp) < 1e-5) {
+          points.push(p);
+        } else if (Math.abs(dq) < 1e-5) {
+          points.push(q);
+        } else if (dp * dq < 0) {
+          const t = dp / (dp - dq);
+          points.push([
+            p[0] + t * (q[0] - p[0]),
+            p[1] + t * (q[1] - p[1]),
+            p[2] + t * (q[2] - p[2])
+          ]);
+        }
+      }
+      const unique = [];
+      for (const p of points) {
+        if (!unique.some(q => Math.hypot(p[0]-q[0], p[1]-q[1], p[2]-q[2]) < 1e-4)) unique.push(p);
+      }
+      return unique.length >= 2 ? [unique[0], unique[1]] : null;
+    }
+
+    function drawPins() {
+      pinsBox.innerHTML = '';
+      state.pins.forEach((p, i) => {
+        const el = document.createElement('span');
+        const safety = evaluateHoleSafety(p);
+        el.className = 'pin' + (i === state.selectedPin ? ' selected' : '') + (safety.level === 'safe' ? '' : ` ${safety.level}`);
+        const m = state.cutMap;
+        const label = m ? `${axisNames[m.a]} ${p[m.a].toFixed(1)}, ${axisNames[m.b]} ${p[m.b].toFixed(1)}, R ${holeRadius(p).toFixed(1)}` : p.map(v=>v.toFixed(1)).join(', ');
+        const warning = safety.messages.length ? `  ! ${safety.messages.join(' / ')}` : '';
+        el.textContent = `Hole ${i+1}: ${label}${warning}`;
+        el.title = safety.messages.length ? safety.messages.join('\n') : 'Right click to remove';
+        el.onclick = () => { state.selectedPin = i; drawPins(); drawCutOverlay(); };
+        el.oncontextmenu = e => { e.preventDefault(); state.pins.splice(i,1); state.selectedPin = Math.min(state.selectedPin, state.pins.length - 1); drawAll(); };
+        pinsBox.appendChild(el);
+      });
+    }
+
+    function drawAll() {
+      if (!state.triangles.length) return;
+      renderOrthoViews();
+      drawCutMap(); drawPins();
+    }
+
+    function pointFromCutEvent(e) {
+      if (!state.cutMap) return;
+      const rect = cutCanvasEl.getBoundingClientRect(), x = e.clientX - rect.left, y = e.clientY - rect.top;
+      const m = state.cutMap, ax = axisIndex[axisInput.value], p = [0,0,0];
+      const mid = [(m.min[0]+m.max[0])/2, (m.min[1]+m.max[1])/2];
+      const centerX = m.w / 2 + state.cutPan[0];
+      const centerY = m.h / 2 + state.cutPan[1];
+      p[ax] = Number(posText.value);
+      p[m.a] = mid[0] + (x - centerX) / m.s;
+      p[m.b] = mid[1] - (y - centerY) / m.s;
+      return p;
+    }
+
+    function cutPointToScreen(point) {
+      if (!state.cutMap) return null;
+      const m = state.cutMap;
+      const mid = [(m.min[0]+m.max[0])/2, (m.min[1]+m.max[1])/2];
+      const centerX = m.w / 2 + state.cutPan[0];
+      const centerY = m.h / 2 + state.cutPan[1];
+      return [centerX + (point[m.a] - mid[0]) * m.s, centerY - (point[m.b] - mid[1]) * m.s];
+    }
+
+    function hitPinFromEvent(e) {
+      if (!state.cutMap) return -1;
+      const rect = cutCanvasEl.getBoundingClientRect();
+      const mouse = [e.clientX - rect.left, e.clientY - rect.top];
+      for (let i=state.pins.length-1; i>=0; i--) {
+        const q = cutPointToScreen(state.pins[i]);
+        if (!q) continue;
+        const hitRadius = Math.max(10, holeRadius(state.pins[i]) * state.cutMap.s + 5);
+        if (Math.hypot(mouse[0] - q[0], mouse[1] - q[1]) <= hitRadius) return i;
+      }
+      return -1;
+    }
+
+    const cutCanvasEl = document.getElementById('cutCanvas');
+    cutCanvasEl.style.cursor = 'grab';
+    const pinContextMenu = document.getElementById('pinContextMenu');
+    function hidePinMenu() {
+      pinContextMenu.style.display = 'none';
+    }
+    function showPinMenu(e, pinIndex) {
+      state.selectedPin = pinIndex;
+      const card = pinContextMenu.closest('.cut-card');
+      const rect = card.getBoundingClientRect();
+      pinContextMenu.style.left = `${e.clientX - rect.left}px`;
+      pinContextMenu.style.top = `${e.clientY - rect.top}px`;
+      pinContextMenu.style.display = 'block';
+      drawPins();
+      drawCutOverlay();
+    }
+    function setCutMode(mode) {
+      state.cutMode = mode;
+      if (mode !== 'select') {
+        state.selectedPin = -1;
+      }
+      if (mode !== 'point') {
+        state.pendingHole = null;
+        state.previewRadius = null;
+      }
+      if (mode === 'move') {
+        state.placingCopy = null;
+      }
+      document.getElementById('cutSelectMode').classList.toggle('active', mode === 'select');
+      document.getElementById('cutMoveMode').classList.toggle('active', mode === 'move');
+      document.getElementById('cutPointMode').classList.toggle('active', mode === 'point');
+      cutCanvasEl.style.cursor = mode === 'move' ? 'grab' : mode === 'select' ? 'default' : 'crosshair';
+      drawCutOverlay();
+    }
+    document.getElementById('cutSelectMode').addEventListener('click', () => setCutMode('select'));
+    document.getElementById('cutMoveMode').addEventListener('click', () => setCutMode('move'));
+    document.getElementById('cutPointMode').addEventListener('click', () => setCutMode('point'));
+    cutCanvasEl.addEventListener('wheel', e => {
+      e.preventDefault();
+      const before = pointFromCutEvent(e);
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      state.cutZoom = Math.max(0.6, Math.min(8, state.cutZoom * factor));
+      drawCutMap();
+      const after = pointFromCutEvent(e);
+      if (before && after && state.cutMap) {
+        const m = state.cutMap;
+        state.cutPan[0] += (after[m.a] - before[m.a]) * m.s;
+        state.cutPan[1] -= (after[m.b] - before[m.b]) * m.s;
+        drawCutMap();
+      }
+    }, { passive:false });
+    cutCanvasEl.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      hidePinMenu();
+      if (state.cutMode !== 'select' || state.placingCopy) return;
+      const hit = hitPinFromEvent(e);
+      if (hit >= 0) showPinMenu(e, hit);
+    });
+    cutCanvasEl.addEventListener('mousedown', e => {
+      if (e.button !== 2) hidePinMenu();
+      if (state.placingCopy) return;
+      if (e.button === 1) {
+        e.preventDefault();
+        setCutMode('move');
+      }
+      if (state.cutMode === 'select' && e.button === 0) {
+        const hit = hitPinFromEvent(e);
+        if (hit >= 0) {
+          state.selectedPin = hit;
+          state.pinDragging = true;
+          state.pinInteraction = true;
+          state.cutMoved = false;
+          cutCanvasEl.style.cursor = 'grabbing';
+          drawPins();
+          drawCutOverlay();
+          return;
+        }
+      }
+      if ((state.cutMode === 'move' && e.button === 0) || e.button === 1 || e.button === 2) {
+        state.cutPanning = true;
+        state.cutMoved = false;
+        state.cutLast = [e.clientX, e.clientY];
+        cutCanvasEl.style.cursor = 'grabbing';
+      }
+    });
+    cutCanvasEl.addEventListener('auxclick', e => {
+      if (e.button === 1) e.preventDefault();
+    });
+    window.addEventListener('mouseup', () => {
+      state.cutPanning = false;
+      state.pinDragging = false;
+      cutCanvasEl.style.cursor = state.cutMode === 'move' ? 'grab' : state.cutMode === 'select' ? 'default' : 'crosshair';
+    });
+    window.addEventListener('mousemove', e => {
+      if (state.pinDragging && state.selectedPin >= 0) {
+        const p = pointFromCutEvent(e);
+        if (!p) return;
+        const snap = snapCutPoint(p, state.selectedPin);
+        const pin = state.pins[state.selectedPin];
+        const m = state.cutMap;
+        pin[m.a] = snap.point[m.a];
+        pin[m.b] = snap.point[m.b];
+        pin[axisIndex[axisInput.value]] = Number(posText.value);
+        state.cursorPoint = p;
+        state.snapPoint = snap.label ? snap.point : null;
+        state.snapGuides = snap.guides || [];
+        state.cutMoved = true;
+        document.getElementById('cursorReadout').textContent = `Move Hole ${state.selectedPin + 1}: ${snap.point.map(v=>v.toFixed(2)).join(', ')}`;
+        drawPins();
+        drawCutOverlay();
+        renderOrbit();
+        return;
+      }
+      if (!state.cutPanning) return;
+      const dx = e.clientX - state.cutLast[0];
+      const dy = e.clientY - state.cutLast[1];
+      if (Math.abs(dx) + Math.abs(dy) > 2) state.cutMoved = true;
+      state.cutPan[0] += dx;
+      state.cutPan[1] += dy;
+      state.cutLast = [e.clientX, e.clientY];
+      drawCutMap();
+    });
+
+    document.getElementById('cutCanvas').addEventListener('mousemove', e => {
+      const p = pointFromCutEvent(e);
+      if (!p) return;
+      const snap = snapCutPoint(p);
+      if (state.placingCopy) {
+        const m = state.cutMap;
+        state.placingCopy[m.a] = snap.point[m.a];
+        state.placingCopy[m.b] = snap.point[m.b];
+        state.placingCopy[axisIndex[axisInput.value]] = Number(posText.value);
+        state.cursorPoint = p;
+        state.snapPoint = snap.label ? snap.point : null;
+        state.snapGuides = snap.guides || [];
+        const safety = evaluateHoleSafety(state.placingCopy);
+        document.getElementById('cursorReadout').textContent = `Place copy: ${snap.point.map(v=>v.toFixed(2)).join(', ')}`;
+        document.getElementById('edgeDistance').textContent = safety.level === 'safe' ? 'Copy: OK, click to place' : `Copy: ${safety.messages.join(' / ')}`;
+        drawCutOverlay();
+        return;
+      }
+      state.cursorPoint = p;
+      state.snapPoint = state.cutMode !== 'move' && snap.label ? snap.point : null;
+      state.snapGuides = state.cutMode !== 'move' ? (snap.guides || []) : [];
+      if (state.cutMode === 'point' && state.pendingHole && state.cutMap) {
+        const m = state.cutMap;
+        const rawRadius = Math.hypot(snap.point[m.a] - state.pendingHole[m.a], snap.point[m.b] - state.pendingHole[m.b]);
+        const radiusSnap = snapHoleRadius(rawRadius);
+        state.previewRadius = radiusSnap.radius;
+        state.radiusSnap = radiusSnap.snap;
+        document.getElementById('pinRadius').value = Math.max(0.1, state.previewRadius).toFixed(2);
+      }
+      document.getElementById('cursorReadout').textContent = `Cursor: ${snap.point.map(v=>v.toFixed(2)).join(', ')}`;
+      if (state.cutMap) {
+        const m = state.cutMap;
+        const left = snap.point[m.a] - state.min[m.a];
+        const right = state.max[m.a] - snap.point[m.a];
+        const bottom = snap.point[m.b] - state.min[m.b];
+        const top = state.max[m.b] - snap.point[m.b];
+        document.getElementById('edgeDistance').textContent = `Edge: L ${left.toFixed(1)} R ${right.toFixed(1)} / B ${bottom.toFixed(1)} T ${top.toFixed(1)} mm`;
+      }
+      drawCutOverlay();
+    });
+    document.getElementById('cutCanvas').addEventListener('mouseleave', () => {
+      state.cursorPoint = null; state.snapPoint = null;
+      state.snapGuides = [];
+      state.radiusSnap = null;
+      if (!state.pendingHole) state.previewRadius = null;
+      if (!state.placingCopy) {
+        document.getElementById('cursorReadout').textContent = 'Cursor: -';
+        document.getElementById('edgeDistance').textContent = 'Edge: -';
+      }
+      drawCutOverlay();
+    });
+    document.getElementById('cutCanvas').addEventListener('click', e => {
+      if (state.placingCopy) {
+        const safety = evaluateHoleSafety(state.placingCopy);
+        if (safety.level === 'danger') {
+          statusBox.textContent = `Cannot place copy: ${safety.messages.join(' / ')}`;
+          drawCutOverlay();
+          return;
+        }
+        const copy = state.placingCopy.slice();
+        copy.radius = holeRadius(state.placingCopy);
+        state.pins.push(copy);
+        state.selectedPin = -1;
+        state.placingCopy = null;
+        state.cursorPoint = null;
+        state.snapPoint = null;
+        state.snapGuides = [];
+        statusBox.textContent = `Placed copied Hole ${state.pins.length}.`;
+        drawPins();
+        drawCutOverlay();
+        renderOrbit();
+        return;
+      }
+      if (state.pinInteraction) {
+        state.pinInteraction = false;
+        state.cutMoved = false;
+        return;
+      }
+      if (state.cutMoved) {
+        state.cutMoved = false;
+        return;
+      }
+      const p = pointFromCutEvent(e);
+      if (!p) return;
+      const snap = snapCutPoint(p);
+      if (state.cutMode === 'select') {
+        const hit = hitPinFromEvent(e);
+        if (hit >= 0) {
+          state.selectedPin = hit;
+        } else {
+          state.selectedPin = -1;
+        }
+        drawPins();
+        drawCutOverlay();
+        return;
+      }
+      if (state.cutMode !== 'point') return;
+      const hit = hitPinFromEvent(e);
+      if (hit >= 0) {
+        statusBox.textContent = 'Use Select mode to choose or move an existing hole.';
+        drawPins();
+        drawCutOverlay();
+        return;
+      }
+      if (!state.pendingHole) {
+        state.pendingHole = snap.point.slice();
+        state.previewRadius = 0;
+      } else {
+        const m = state.cutMap;
+        const radius = Math.max(0.1, Math.hypot(snap.point[m.a] - state.pendingHole[m.a], snap.point[m.b] - state.pendingHole[m.b]));
+        const hole = state.pendingHole.slice();
+        hole.radius = radius;
+        state.pins.push(hole);
+        state.selectedPin = -1;
+        document.getElementById('pinRadius').value = radius.toFixed(2);
+        state.pendingHole = null;
+        state.previewRadius = null;
+        state.radiusSnap = null;
+      }
+      state.cursorPoint = p;
+      state.snapPoint = null;
+      state.snapGuides = [];
+      drawPins();
+      drawCutOverlay();
+    });
+
+    let sectionTimer = null;
+    function scheduleSectionRefresh() {
+      state.sectionSegments = null;
+      clearTimeout(sectionTimer);
+      sectionTimer = setTimeout(refreshSectionSegments, 180);
+    }
+    function clearHoleDrafts() {
+      state.pins = [];
+      state.selectedPin = -1;
+      state.pendingHole = null;
+      state.previewRadius = null;
+      state.placingCopy = null;
+      state.snapGuides = [];
+      state.radiusSnap = null;
+    }
+    function divisionSnapValue(value) {
+      const ax = axisIndex[axisInput.value];
+      const span = state.size[ax] || 1;
+      const threshold = span * 0.018;
+      let best = value;
+      let bestDist = threshold;
+      let snapIndex = -1;
+      for (let i=1; i<state.division; i++) {
+        const target = state.min[ax] + span * i / state.division;
+        const dist = Math.abs(value - target);
+        if (dist <= bestDist) {
+          best = target;
+          bestDist = dist;
+          snapIndex = i;
+        }
+      }
+      updateSnapTicks(snapIndex);
+      return best;
+    }
+    function updateSnapTicks(activeIndex = -1) {
+      const box = document.getElementById('snapTicks');
+      box.innerHTML = '';
+      for (let i=1; i<state.division; i++) {
+        const tick = document.createElement('div');
+        tick.className = 'snap-tick' + (i === activeIndex ? ' active' : '');
+        tick.style.left = `${(i / state.division) * 100}%`;
+        tick.textContent = `${i}/${state.division}`;
+        box.appendChild(tick);
+      }
+    }
+    posRange.addEventListener('input', () => {
+      const snapped = divisionSnapValue(Number(posRange.value));
+      posRange.value = snapped;
+      posText.value = snapped.toFixed(3);
+      clearHoleDrafts(); drawAll(); renderOrbit(); scheduleSectionRefresh();
+    });
+    posText.addEventListener('change', () => { const snapped = divisionSnapValue(Number(posText.value)); posRange.value = snapped; posText.value = snapped.toFixed(3); clearHoleDrafts(); drawAll(); renderOrbit(); scheduleSectionRefresh(); });
+    axisInput.addEventListener('change', () => {
+      const ax = axisIndex[axisInput.value];
+      posRange.min = state.min[ax]; posRange.max = state.max[ax]; posRange.value = (state.min[ax]+state.max[ax])/2; posText.value = Number(posRange.value).toFixed(3);
+      updateSnapTicks();
+      clearHoleDrafts(); drawAll(); renderOrbit();
+      scheduleSectionRefresh();
+    });
+    document.getElementById('clearPins').onclick = () => { clearHoleDrafts(); drawAll(); };
+    function beginCopySelectedPin() {
+      hidePinMenu();
+      if (state.selectedPin < 0 || !state.pins[state.selectedPin] || !state.cutMap) {
+        statusBox.textContent = 'Select a hole first, then copy.';
+        return;
+      }
+      const m = state.cutMap;
+      const source = state.pins[state.selectedPin];
+      const copy = source.slice();
+      copy.radius = holeRadius(source);
+      copy[m.a] = source[m.a];
+      copy[m.b] = source[m.b];
+      copy[axisIndex[axisInput.value]] = Number(posText.value);
+      state.pendingHole = null;
+      state.previewRadius = null;
+      state.placingCopy = copy;
+      setCutMode('select');
+      statusBox.textContent = 'Copy placement: move the cursor, wait for OK, then click to place.';
+      drawCutOverlay();
+      renderOrbit();
+    }
+    function deleteSelectedPin() {
+      hidePinMenu();
+      if (state.placingCopy) {
+        state.placingCopy = null;
+        statusBox.textContent = 'Copy placement cancelled.';
+        drawCutOverlay();
+        return;
+      }
+      if (state.selectedPin < 0 || !state.pins[state.selectedPin]) return;
+      state.pins.splice(state.selectedPin, 1);
+      state.selectedPin = -1;
+      drawAll();
+      renderOrbit();
+    }
+    document.getElementById('menuCopyPin').onclick = beginCopySelectedPin;
+    document.getElementById('menuDeletePin').onclick = deleteSelectedPin;
+    window.addEventListener('click', e => {
+      if (!pinContextMenu.contains(e.target)) hidePinMenu();
+    });
+    window.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      const summaryModal = document.getElementById('summaryModal');
+      if (summaryModal.style.display === 'grid') {
+        document.getElementById('summaryCancel').click();
+        return;
+      }
+      hidePinMenu();
+      state.placingCopy = null;
+      state.pendingHole = null;
+      state.previewRadius = null;
+      state.pinDragging = false;
+      state.pinInteraction = false;
+      state.cutPanning = false;
+      state.cutMoved = false;
+      state.cursorPoint = null;
+      state.snapPoint = null;
+      state.radiusSnap = null;
+      cutCanvasEl.style.cursor = state.cutMode === 'move' ? 'grab' : state.cutMode === 'select' ? 'default' : 'crosshair';
+      statusBox.textContent = 'Action cancelled.';
+      drawPins();
+      drawCutOverlay();
+    });
+    document.querySelectorAll('[data-division]').forEach(button => {
+      button.addEventListener('click', () => {
+        state.division = Number(button.dataset.division);
+        document.querySelectorAll('[data-division]').forEach(btn => btn.classList.toggle('active', btn === button));
+        updateSnapTicks(1);
+        const ratio = 1 / state.division;
+        const ax = axisIndex[axisInput.value];
+        const value = state.min[ax] + state.size[ax] * ratio;
+        posRange.value = value;
+        posText.value = value.toFixed(3);
+        clearHoleDrafts();
+        drawAll();
+        renderOrbit();
+        scheduleSectionRefresh();
+      });
+    });
+    document.getElementById('loadBtn').onclick = loadModel;
+    document.getElementById('openStlBtn').onclick = async () => {
+      statusBox.textContent = 'Opening file picker...';
+      const data = await (await fetch('/api/open-stl')).json();
+      if (data.path) {
+        pathInput.value = data.path;
+        await loadModel();
+      } else {
+        statusBox.textContent = 'No STL selected.';
+      }
+    };
+    document.getElementById('socketDepth').addEventListener('input', () => { drawCutOverlay(); renderOrbit(); drawPins(); });
+    document.getElementById('pinRadius').addEventListener('input', () => { drawCutOverlay(); renderOrbit(); drawPins(); });
+    const orbitCanvas = document.getElementById('orbitCanvas');
+    orbitCanvas.addEventListener('mousedown', e => { orbit.dragging = true; orbit.lastX = e.clientX; orbit.lastY = e.clientY; });
+    window.addEventListener('mouseup', () => { orbit.dragging = false; });
+    window.addEventListener('mousemove', e => {
+      if (!orbit.dragging) return;
+      const dx = e.clientX - orbit.lastX, dy = e.clientY - orbit.lastY;
+      orbit.lastX = e.clientX; orbit.lastY = e.clientY;
+      orbit.yaw -= dx * 0.01;
+      orbit.pitch = Math.max(-1.45, Math.min(1.45, orbit.pitch + dy * 0.01));
+      renderOrbit();
+    });
+    orbitCanvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      orbit.distance = Math.max(1.2, Math.min(8, orbit.distance * (e.deltaY > 0 ? 1.1 : 0.9)));
+      renderOrbit();
+    }, { passive:false });
+    function buildSplitSummary() {
+      const depth = Number(document.getElementById('socketDepth').value);
+      const clearance = Number(document.getElementById('toleranceMode').value);
+      const danger = [];
+      const warnings = [];
+      state.pins.forEach((pin, i) => {
+        const safety = evaluateHoleSafety(pin);
+        const line = `Hole ${i + 1}: ${safety.messages.join(' / ')}`;
+        if (safety.level === 'danger') danger.push(line);
+        else if (safety.level === 'warn') warnings.push(line);
+      });
+      const radii = state.pins.length
+        ? [...new Set(state.pins.map(p => holeRadius(p).toFixed(2)))].join(', ')
+        : 'none';
+      return {
+        axis: axisInput.value.toUpperCase(),
+        position: `${Number(posText.value).toFixed(3)} mm`,
+        holes: state.pins.length,
+        radii,
+        depth: `${depth.toFixed(2)} mm`,
+        tolerance: clearance === 0 ? 'No clearance (0 mm)' : `PLA default (+${clearance.toFixed(1)} mm)`,
+        warnings,
+        danger,
+      };
+    }
+
+    function addSummaryItem(parent, label, value) {
+      const item = document.createElement('div');
+      item.className = 'summary-item';
+      const small = document.createElement('span');
+      small.textContent = label;
+      const strong = document.createElement('strong');
+      strong.textContent = value;
+      item.append(small, strong);
+      parent.appendChild(item);
+    }
+
+    function addSummaryPanel(parent, title, items, className, emptyText) {
+      const panel = document.createElement('div');
+      panel.className = `summary-panel ${className || ''}`.trim();
+      const heading = document.createElement('h4');
+      heading.textContent = title;
+      panel.appendChild(heading);
+      if (items.length) {
+        const list = document.createElement('ul');
+        list.className = 'summary-list';
+        for (const item of items) {
+          const li = document.createElement('li');
+          li.textContent = item;
+          list.appendChild(li);
+        }
+        panel.appendChild(list);
+      } else {
+        const p = document.createElement('div');
+        p.className = 'summary-ok';
+        p.textContent = emptyText;
+        panel.appendChild(p);
+      }
+      parent.appendChild(panel);
+    }
+
+    function showSplitSummaryModal(summary) {
+      return new Promise(resolve => {
+        const modal = document.getElementById('summaryModal');
+        const body = document.getElementById('summaryBody');
+        const subtitle = document.getElementById('summarySubtitle');
+        const confirmBtn = document.getElementById('summaryConfirm');
+        const cancelBtn = document.getElementById('summaryCancel');
+        body.innerHTML = '';
+        subtitle.textContent = summary.danger.length
+          ? 'Dangerous holes found. Confirm only if you still want to output.'
+          : 'Review settings before output.';
+
+        const grid = document.createElement('div');
+        grid.className = 'summary-grid';
+        addSummaryItem(grid, 'Cut axis', summary.axis);
+        addSummaryItem(grid, 'Cut position', summary.position);
+        addSummaryItem(grid, 'Holes', String(summary.holes));
+        addSummaryItem(grid, 'Hole radius', summary.radii);
+        addSummaryItem(grid, 'Hole depth', summary.depth);
+        addSummaryItem(grid, 'Tolerance', summary.tolerance);
+        body.appendChild(grid);
+
+        addSummaryPanel(body, 'Warnings', summary.warnings, 'summary-warn', 'No warning holes.');
+        addSummaryPanel(body, 'Dangerous holes', summary.danger, summary.danger.length ? 'summary-danger' : '', 'No dangerous holes found.');
+
+        const cleanup = result => {
+          modal.style.display = 'none';
+          confirmBtn.onclick = null;
+          cancelBtn.onclick = null;
+          resolve(result);
+        };
+        confirmBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+        modal.onclick = e => { if (e.target === modal) cleanup(false); };
+        modal.style.display = 'grid';
+        confirmBtn.focus();
+      });
+    }
+
+    document.getElementById('processBtn').onclick = async () => {
+      const summary = buildSplitSummary();
+      if (!(await showSplitSummaryModal(summary))) {
+        statusBox.textContent = 'Output cancelled.';
+        return;
+      }
+      statusBox.textContent = 'Processing STL. This can take about a minute...';
+      const res = await fetch('/api/split', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+        path: pathInput.value, axis: axisInput.value, position: Number(posText.value), rotateZ: Number(document.getElementById('rotateZ').value),
+        pinRadius: Number(document.getElementById('pinRadius').value),
+        socketDepth: Number(document.getElementById('socketDepth').value),
+        pinLength: Math.max(1, Number(document.getElementById('socketDepth').value) * 2 - 0.4),
+        pinClearance: Number(document.getElementById('toleranceMode').value),
+        socketHoles: state.pins.length > 0,
+        socketCenters: state.pins.map(p => [p[0], p[1], p[2]]),
+        socketRadii: state.pins.map(p => p.radius || Number(document.getElementById('pinRadius').value))
+      })});
+      const data = await res.json();
+      if (!data.ok) { statusBox.textContent = 'Error: ' + data.error; return; }
+      const r = data.report;
+      statusBox.innerHTML = `Done.<br>Output: ${r.parts[0].file.replace(/\\[^\\]+$/, '')}<br>Parts: ${r.parts.length}<br>Sockets: ${r.socket_holes?.status || 'none'}<br><br><a href="${r.zip_url}" download>Download ZIP package</a>`;
+    };
+    window.addEventListener('resize', () => { drawAll(); renderOrbit(); });
+    loadModel().catch(err => statusBox.textContent = String(err));
+  </script>
+</body>
+</html>
