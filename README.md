@@ -1,26 +1,50 @@
 # STL Splitter
 
-把超過 Bambu Lab A1 Mini 約 180 x 180 x 180 mm 列印範圍的 STL，沿指定軸切成兩個 STL。
+把超過小型 3D 印表機列印範圍的 STL，沿指定軸切成兩個 STL，並輸出定位 pin 輔助黏合。
 
 這是第一版 MVP，重點是：
 
 - 支援 binary STL 與常見 ASCII STL 讀取。
-- 可用 `run_gui.bat` 開啟視窗，自行選擇本機 STL 檔案。
+- 可用瀏覽器介面自行選擇本機 STL 檔案。
 - 目前 GUI 固定為「一刀切割，輸出兩個部分」。
-- 可先將模型繞 Z 軸旋轉，再沿指定軸切一刀。
 - 將切面補成平面，輸出兩個可切片的 STL。
 - 產生一份 JSON 報告，列出每個零件尺寸是否符合 180 mm 列印體積。
 - 可另外輸出定位圓榫 pin STL，方便列印後黏合定位。
+- 靜態網頁版會在瀏覽器直接產生 ZIP，適合部署到 GitHub Pages。
 
 目前限制：
 
-- 這版不做 mesh boolean，所以不會自動在零件上挖母榫孔。
+- GitHub Pages / 純前端第一版不做 mesh boolean，所以不會自動在零件上挖母榫孔。
 - 對非常複雜、有多重交叉輪廓或非封閉 STL 的補面可能需要檢查。
 - 若原模型單位不是 mm，請先在切片軟體或建模軟體確認尺度。
 
 ## 使用方式
 
-### 互動式人工判斷介面
+### GitHub Pages / 純前端介面
+
+直接開：
+
+```text
+web_app.html
+```
+
+或部署到 GitHub Pages 後打開網站。這個版本可以：
+
+- 按 `Open STL` 選擇本機 STL 檔案。
+- 用 3D Orbit 和正投影視圖檢查模型。
+- 用 Cut Face 指定定位 pin 位置。
+- 用 `Move` / `Draw` / `Select` 操作孔位，並顯示安全提示。
+- 按 `Split and download ZIP` 後，在瀏覽器直接下載 ZIP。
+
+ZIP 內容包含：
+
+- 兩個切割後 STL：`part_A.stl`、`part_B.stl`
+- 所有定位 pin STL
+- 切割 / 孔位設定報告 JSON
+
+注意：純前端第一版只輸出定位 pin，不會在兩個零件上自動挖母榫孔。孔位資訊會寫進 JSON，後續版本再補真正的切面挖孔。
+
+### 本機 Python 互動式介面
 
 直接雙擊：
 
@@ -31,10 +55,10 @@ run_interactive.bat
 這個介面可以：
 
 - 從上、前、後、左、右五個視角檢查模型。
-- 用滑桿指定切割位置，也可以用 1/2、1/3、2/3、1/4、2/4、3/4 快捷按鈕吸附到常用等分點。
+- 用滑桿指定切割位置，也可以用 1/2、1/3、1/4 按鈕顯示對應等分吸附點。
 - 在切面地圖上用滑鼠點選圓榫孔位置。
 - 旁邊只需要調兩個孔位參數：孔半徑、孔深度。
-- 按 `Process STL` 後自動切割、挖孔、輸出 Part A / Part B / pins。
+- 按 `Split and download ZIP` 後輸出 Part A / Part B / pins / JSON。
 
 ### 圖形介面
 
