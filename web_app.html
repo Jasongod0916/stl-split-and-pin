@@ -2207,10 +2207,77 @@
       return loops;
     }
 
-    function capTriangles(loops, axis, outwardSign) {
+    function capPoint2D(point, axis) {
+      const axes = [0, 1, 2].filter(i => i !== axis);
+      return [point[axes[0]], point[axes[1]]];
+    }
+
+    function triMaxEdge2D(tri, axis) {
+      const a = capPoint2D(tri[0], axis);
+      const b = capPoint2D(tri[1], axis);
+      const c = capPoint2D(tri[2], axis);
+      return Math.max(
+        Math.hypot(a[0] - b[0], a[1] - b[1]),
+        Math.hypot(b[0] - c[0], b[1] - c[1]),
+        Math.hypot(c[0] - a[0], c[1] - a[1])
+      );
+    }
+
+    function midpoint3D(a, b) {
+      return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+    }
+
+    function subdivideCapTriangle(tri, axis, maxEdge, depth = 0) {
+      if (depth >= 8 || triMaxEdge2D(tri, axis) <= maxEdge) return [tri];
+      const ab = midpoint3D(tri[0], tri[1]);
+      const bc = midpoint3D(tri[1], tri[2]);
+      const ca = midpoint3D(tri[2], tri[0]);
+      return [
+        ...subdivideCapTriangle([tri[0], ab, ca], axis, maxEdge, depth + 1),
+        ...subdivideCapTriangle([ab, tri[1], bc], axis, maxEdge, depth + 1),
+        ...subdivideCapTriangle([ca, bc, tri[2]], axis, maxEdge, depth + 1),
+        ...subdivideCapTriangle([ab, bc, ca], axis, maxEdge, depth + 1),
+      ];
+    }
+
+    function capTriangleCentroid(tri) {
+      return [
+        (tri[0][0] + tri[1][0] + tri[2][0]) / 3,
+        (tri[0][1] + tri[1][1] + tri[2][1]) / 3,
+        (tri[0][2] + tri[1][2] + tri[2][2]) / 3,
+      ];
+    }
+
+    function pointInsideSocket(point, socket, axis) {
+      const axes = [0, 1, 2].filter(i => i !== axis);
+      const dx = point[axes[0]] - socket.center[axes[0]];
+      const dy = point[axes[1]] - socket.center[axes[1]];
+      return Math.hypot(dx, dy) <= socket.radius;
+    }
+
+    function triangleNearSocket(tri, socket, axis) {
+      const axes = [0, 1, 2].filter(i => i !== axis);
+      const xs = tri.map(p => p[axes[0]]);
+      const ys = tri.map(p => p[axes[1]]);
+      const minX = Math.min(...xs) - socket.radius;
+      const maxX = Math.max(...xs) + socket.radius;
+      const minY = Math.min(...ys) - socket.radius;
+      const maxY = Math.max(...ys) + socket.radius;
+      return socket.center[axes[0]] >= minX && socket.center[axes[0]] <= maxX
+        && socket.center[axes[1]] >= minY && socket.center[axes[1]] <= maxY;
+    }
+
+    function capSubdivideLength(sockets) {
+      if (!sockets.length) return Infinity;
+      const minRadius = Math.max(0.1, Math.min(...sockets.map(s => s.radius)));
+      return Math.max(0.55, Math.min(2.2, minRadius / 3));
+    }
+
+    function capTriangles(loops, axis, outwardSign, sockets = []) {
       const capped = [];
       const target = [0, 0, 0];
       target[axis] = outwardSign;
+      const maxEdge = capSubdivideLength(sockets);
       for (const loop of loops) {
         if (loop.length < 3) continue;
         const center = [0, 0, 0];
@@ -2228,13 +2295,87 @@
           const normal = triangleNormal(tri);
           const dotTarget = normal[0] * target[0] + normal[1] * target[1] + normal[2] * target[2];
           if (dotTarget < 0) tri = [clonePoint(center), clonePoint(loop[(i + 1) % loop.length]), clonePoint(loop[i])];
-          capped.push(tri);
+          const nearbySockets = sockets.filter(socket => triangleNearSocket(tri, socket, axis));
+          const pieces = nearbySockets.length ? subdivideCapTriangle(tri, axis, maxEdge) : [tri];
+          for (const piece of pieces) {
+            const centroid = capTriangleCentroid(piece);
+            if (nearbySockets.some(socket => pointInsideSocket(centroid, socket, axis))) continue;
+            capped.push(piece);
+          }
         }
       }
       return capped;
     }
 
-    function splitMeshClient(triangles, axis, position) {
+    function socketCutters(axis, position, clearance, depth) {
+      return state.pins.map(pin => ({
+        center: clonePoint(pin),
+        radius: holeRadius(pin) + clearance,
+        depth,
+        position,
+      }));
+    }
+
+    function makeSocketGeometry(socket, axis, inwardSign, segments = 48) {
+      const tris = [];
+      const axes = [0, 1, 2].filter(i => i !== axis);
+      const a = axes[0];
+      const b = axes[1];
+      const openCenter = clonePoint(socket.center);
+      openCenter[axis] = socket.position;
+      const bottomCenter = clonePoint(openCenter);
+      bottomCenter[axis] = socket.position + inwardSign * socket.depth;
+      const openRing = [];
+      const bottomRing = [];
+      for (let i = 0; i < segments; i++) {
+        const angle = Math.PI * 2 * i / segments;
+        const ca = Math.cos(angle) * socket.radius;
+        const cb = Math.sin(angle) * socket.radius;
+        const p0 = clonePoint(openCenter);
+        const p1 = clonePoint(bottomCenter);
+        p0[a] += ca; p0[b] += cb;
+        p1[a] += ca; p1[b] += cb;
+        openRing.push(p0);
+        bottomRing.push(p1);
+      }
+      for (let i = 0; i < segments; i++) {
+        const j = (i + 1) % segments;
+        let wallA = [openRing[i], bottomRing[i], bottomRing[j]];
+        let wallB = [openRing[i], bottomRing[j], openRing[j]];
+        const radialMid = [
+          ((openRing[i][0] + openRing[j][0]) / 2) - openCenter[0],
+          ((openRing[i][1] + openRing[j][1]) / 2) - openCenter[1],
+          ((openRing[i][2] + openRing[j][2]) / 2) - openCenter[2],
+        ];
+        const wallNormal = triangleNormal(wallA);
+        if (wallNormal[0] * radialMid[0] + wallNormal[1] * radialMid[1] + wallNormal[2] * radialMid[2] < 0) {
+          wallA = [openRing[i], bottomRing[j], bottomRing[i]];
+          wallB = [openRing[i], openRing[j], bottomRing[j]];
+        }
+        tris.push(wallA, wallB);
+
+        let bottom = [bottomCenter, bottomRing[j], bottomRing[i]];
+        const bottomNormal = triangleNormal(bottom);
+        const target = [0, 0, 0];
+        target[axis] = inwardSign;
+        if (bottomNormal[0] * target[0] + bottomNormal[1] * target[1] + bottomNormal[2] * target[2] < 0) {
+          bottom = [bottomCenter, bottomRing[i], bottomRing[j]];
+        }
+        tris.push(bottom);
+      }
+      return tris;
+    }
+
+    function addSocketGeometry(partTriangles, sockets, axis, inwardSign) {
+      if (!sockets.length) return partTriangles;
+      const withSockets = partTriangles.slice();
+      for (const socket of sockets) {
+        withSockets.push(...makeSocketGeometry(socket, axis, inwardSign));
+      }
+      return withSockets;
+    }
+
+    function splitMeshClient(triangles, axis, position, sockets = []) {
       const negative = [];
       const positive = [];
       const segments = [];
@@ -2246,9 +2387,14 @@
         if (crossing) segments.push(crossing);
       }
       const loops = buildLoopsForSplit(segments);
-      negative.push(...capTriangles(loops, axis, 1));
-      positive.push(...capTriangles(loops, axis, -1));
-      return { negative, positive, capSegments: segments.length };
+      negative.push(...capTriangles(loops, axis, 1, sockets));
+      positive.push(...capTriangles(loops, axis, -1, sockets));
+      return {
+        negative: addSocketGeometry(negative, sockets, axis, -1),
+        positive: addSocketGeometry(positive, sockets, axis, 1),
+        capSegments: segments.length,
+        socketCount: sockets.length,
+      };
     }
 
     function meshSize(triangles) {
@@ -2411,7 +2557,8 @@
       const clearance = Number(document.getElementById('toleranceMode').value);
       const depth = Number(document.getElementById('socketDepth').value);
       const pinLength = Math.max(1, depth * 2 - 0.4);
-      const split = splitMeshClient(state.triangles, axis, position);
+      const sockets = socketCutters(axis, position, clearance, depth);
+      const split = splitMeshClient(state.triangles, axis, position, sockets);
       const stem = stlStem();
       const partAName = `${stem}_part_A.stl`;
       const partBName = `${stem}_part_B.stl`;
@@ -2431,7 +2578,7 @@
       const bSize = meshSize(split.positive);
       const report = {
         input: state.fileName,
-        mode: 'browser_static_v1',
+        mode: 'browser_static_v2_split_face_sockets',
         axis: axisInput.value,
         position,
         original_size_mm: state.size,
@@ -2450,14 +2597,16 @@
           centers: state.pins.map(p => [p[0], p[1], p[2]]),
         },
         socket_holes: {
-          enabled: false,
-          status: 'not available in browser static v1',
+          enabled: sockets.length > 0,
+          status: sockets.length ? 'cut on split face in browser' : 'none',
           depth_mm: depth,
-          planned_radius_mm: radii.map(r => r + clearance),
+          radius_mm: radii.map(r => r + clearance),
+          clearance_mm: clearance,
+          centers: state.pins.map(p => [p[0], p[1], p[2]]),
         },
         notes: [
-          'Browser static v1 creates split STL parts, separate alignment pin STL files, and this JSON report.',
-          'It does not boolean-cut matching socket holes into the split parts yet.',
+          'Browser static v2 creates split STL parts, cuts matching socket holes on the split face, exports separate alignment pin STL files, and writes this JSON report.',
+          'Socket cutting is specialized for split-face dowel holes, not a general-purpose CAD boolean.',
         ],
       };
       files.push({ name: `${stem}_split_report.json`, data: JSON.stringify(report, null, 2) });
