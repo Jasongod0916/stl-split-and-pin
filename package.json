@@ -1,0 +1,13 @@
+{
+  "name": "stl-split-and-pin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser STL splitter with split-face alignment sockets.",
+  "scripts": {
+    "vendor:manifold": "node scripts/vendor-manifold.mjs"
+  },
+  "dependencies": {
+    "manifold-3d": "3.5.1"
+  }
+}

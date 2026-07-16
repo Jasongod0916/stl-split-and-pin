@@ -2375,6 +2375,92 @@
       return withSockets;
     }
 
+    let manifoldRuntimePromise = null;
+
+    async function loadManifoldRuntime() {
+      if (!manifoldRuntimePromise) {
+        manifoldRuntimePromise = import('./third_party/manifold/manifold.js').then(async module => {
+          const wasm = await module.default();
+          wasm.setup();
+          return wasm;
+        });
+      }
+      return manifoldRuntimePromise;
+    }
+
+    function trianglesToManifoldMesh(triangles, Mesh) {
+      const vertProperties = new Float32Array(triangles.length * 9);
+      const triVerts = new Uint32Array(triangles.length * 3);
+      let vertIndex = 0;
+      for (let i = 0; i < triangles.length; i++) {
+        const tri = triangles[i];
+        for (let j = 0; j < 3; j++) {
+          const p = tri[j];
+          const offset = vertIndex * 3;
+          vertProperties[offset] = p[0];
+          vertProperties[offset + 1] = p[1];
+          vertProperties[offset + 2] = p[2];
+          triVerts[vertIndex] = vertIndex;
+          vertIndex++;
+        }
+      }
+      const mesh = new Mesh({ vertProperties, triVerts, tolerance: 1e-5 });
+      mesh.merge();
+      return mesh;
+    }
+
+    function manifoldMeshToTriangles(mesh) {
+      const triangles = [];
+      const props = mesh.vertProperties;
+      const triVerts = mesh.triVerts;
+      const numProp = mesh.numProp || 3;
+      for (let i = 0; i < triVerts.length; i += 3) {
+        const tri = [];
+        for (let j = 0; j < 3; j++) {
+          const idx = triVerts[i + j] * numProp;
+          tri.push([props[idx], props[idx + 1], props[idx + 2]]);
+        }
+        triangles.push(tri);
+      }
+      return triangles;
+    }
+
+    function socketCutterManifold(socket, axis, inwardSign, wasm) {
+      const { Manifold } = wasm;
+      const outsideOverlap = 1.0;
+      const height = socket.depth + outsideOverlap;
+      const center = clonePoint(socket.center);
+      center[axis] = socket.position + inwardSign * (socket.depth - outsideOverlap) / 2;
+      let cutter = Manifold.cylinder(height, socket.radius, socket.radius, 64, true);
+      if (axis === 0) cutter = cutter.rotate([0, 90, 0]);
+      else if (axis === 1) cutter = cutter.rotate([90, 0, 0]);
+      return cutter.translate(center);
+    }
+
+    async function booleanCutSocketsWithManifold(partTriangles, sockets, axis, inwardSign) {
+      if (!sockets.length) return { triangles: partTriangles, status: 'none' };
+      const wasm = await loadManifoldRuntime();
+      const { Manifold, Mesh } = wasm;
+      let part = null;
+      let cutters = [];
+      let cutterUnion = null;
+      let result = null;
+      try {
+        part = new Manifold(trianglesToManifoldMesh(partTriangles, Mesh));
+        cutters = sockets.map(socket => socketCutterManifold(socket, axis, inwardSign, wasm));
+        cutterUnion = cutters.length === 1 ? cutters[0] : Manifold.union(cutters);
+        result = part.subtract(cutterUnion);
+        const status = result.status();
+        if (status !== 'NoError') throw new Error(status);
+        return { triangles: manifoldMeshToTriangles(result.getMesh()), status: 'cut with Manifold WASM' };
+      } finally {
+        if (result) result.delete();
+        if (cutterUnion && !cutters.includes(cutterUnion)) cutterUnion.delete();
+        for (const cutter of cutters) cutter.delete();
+        if (part) part.delete();
+      }
+    }
+
     function splitMeshClient(triangles, axis, position, sockets = []) {
       const negative = [];
       const positive = [];
@@ -2551,14 +2637,32 @@
       return (state.fileName || pathInput.value || 'model.stl').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_') || 'model';
     }
 
-    function buildClientSplitPackage() {
+    async function buildClientSplitPackage() {
       const axis = axisIndex[axisInput.value];
       const position = Number(posText.value);
       const clearance = Number(document.getElementById('toleranceMode').value);
       const depth = Number(document.getElementById('socketDepth').value);
       const pinLength = Math.max(1, depth * 2 - 0.4);
       const sockets = socketCutters(axis, position, clearance, depth);
-      const split = splitMeshClient(state.triangles, axis, position, sockets);
+      let split = splitMeshClient(state.triangles, axis, position, []);
+      let socketStatus = sockets.length ? 'cut with Manifold WASM' : 'none';
+      if (sockets.length) {
+        try {
+          const negativeCut = await booleanCutSocketsWithManifold(split.negative, sockets, axis, -1);
+          const positiveCut = await booleanCutSocketsWithManifold(split.positive, sockets, axis, 1);
+          split = {
+            ...split,
+            negative: negativeCut.triangles,
+            positive: positiveCut.triangles,
+            socketCount: sockets.length,
+          };
+          socketStatus = `${negativeCut.status} / ${positiveCut.status}`;
+        } catch (err) {
+          console.warn('Manifold socket cut failed, falling back to split-face socket cutter.', err);
+          split = splitMeshClient(state.triangles, axis, position, sockets);
+          socketStatus = `fallback split-face cutter: ${err && err.message ? err.message : String(err)}`;
+        }
+      }
       const stem = stlStem();
       const partAName = `${stem}_part_A.stl`;
       const partBName = `${stem}_part_B.stl`;
@@ -2598,15 +2702,15 @@
         },
         socket_holes: {
           enabled: sockets.length > 0,
-          status: sockets.length ? 'cut on split face in browser' : 'none',
+          status: socketStatus,
           depth_mm: depth,
           radius_mm: radii.map(r => r + clearance),
           clearance_mm: clearance,
           centers: state.pins.map(p => [p[0], p[1], p[2]]),
         },
         notes: [
-          'Browser static v2 creates split STL parts, cuts matching socket holes on the split face, exports separate alignment pin STL files, and writes this JSON report.',
-          'Socket cutting is specialized for split-face dowel holes, not a general-purpose CAD boolean.',
+          'Socket holes are cut with Manifold WASM when the split meshes are valid manifold solids.',
+          'If Manifold cannot process the mesh, the browser falls back to the specialized split-face socket cutter.',
         ],
       };
       files.push({ name: `${stem}_split_report.json`, data: JSON.stringify(report, null, 2) });
