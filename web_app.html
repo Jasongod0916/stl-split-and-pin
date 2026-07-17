@@ -2700,7 +2700,7 @@
       return (state.fileName || pathInput.value || 'model.stl').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_') || 'model';
     }
     function mmTag(value, digits = 2) {
-      return Number(value).toFixed(digits).replace(/-/, 'm');
+      return Number(value).toFixed(digits).replace(/\.?0+$/, '').replace(/-/, 'm');
     }
     function sizeTag(size) {
       return size.map(v => mmTag(v, 1)).join('x');
