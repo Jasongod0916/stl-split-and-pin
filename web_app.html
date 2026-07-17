@@ -134,7 +134,9 @@
       <div class="field">
         <label>Tolerance</label>
         <select id="toleranceMode">
-          <option value="0.2" selected>PLA default (+0.2 mm)</option>
+          <option value="0.2">PLA loose (+0.20 mm)</option>
+          <option value="0.1" selected>PLA normal (+0.10 mm)</option>
+          <option value="0.05">PLA tight (+0.05 mm)</option>
           <option value="0">No clearance (0 mm)</option>
         </select>
       </div>
@@ -2732,7 +2734,9 @@
 
     function buildSplitSummary() {
       const depth = Number(document.getElementById('socketDepth').value);
-      const clearance = Number(document.getElementById('toleranceMode').value);
+      const toleranceSelect = document.getElementById('toleranceMode');
+      const clearance = Number(toleranceSelect.value);
+      const toleranceLabel = toleranceSelect.options[toleranceSelect.selectedIndex]?.textContent || `${clearance.toFixed(2)} mm`;
       const danger = [];
       const warnings = [];
       state.pins.forEach((pin, i) => {
@@ -2750,7 +2754,7 @@
         holes: state.pins.length,
         radii,
         depth: `${depth.toFixed(2)} mm`,
-        tolerance: clearance === 0 ? 'No clearance (0 mm)' : `PLA default (+${clearance.toFixed(1)} mm)`,
+        tolerance: toleranceLabel,
         warnings,
         danger,
       };
