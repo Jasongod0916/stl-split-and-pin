@@ -186,7 +186,7 @@
     </div>
   </div>
   <script>
-    const state = { triangles: [], vertices: [], min:[0,0,0], max:[1,1,1], size:[1,1,1], pins: [], selectedPin:-1, cursorPoint: null, snapPoint: null, snapGuides: [], radiusSnap:null, cutBase: null, cutBaseSize: null, sectionSegments: null, sectionKey: '', pendingHole: null, previewRadius: null, placingCopy:null, cutZoom:1, cutPan:[0,0], cutPanning:false, pinDragging:false, pinInteraction:false, cutMoved:false, cutLast:[0,0], cutMode:'move', division:2, selectedFile:null, fileName:'model.stl' };
+    const state = { triangles: [], vertices: [], min:[0,0,0], max:[1,1,1], size:[1,1,1], pins: [], selectedPin:-1, cursorPoint: null, snapPoint: null, snapGuides: [], radiusSnap:null, cutBase: null, cutBaseSize: null, sectionSegments: null, sectionKey: '', pendingHole: null, previewRadius: null, radiusEntry:'', placingCopy:null, cutZoom:1, cutPan:[0,0], cutPanning:false, pinDragging:false, pinInteraction:false, cutMoved:false, cutLast:[0,0], cutMode:'move', division:2, selectedFile:null, fileName:'model.stl' };
     const orbit = { gl:null, program:null, buffers:null, yaw:-0.65, pitch:0.55, distance:1, dragging:false, lastX:0, lastY:0 };
     const orthoViews = {};
     const axisIndex = {x:0,y:1,z:2};
@@ -1666,6 +1666,7 @@
       if (mode !== 'point') {
         state.pendingHole = null;
         state.previewRadius = null;
+        state.radiusEntry = '';
       }
       if (mode === 'move') {
         state.placingCopy = null;
@@ -1790,7 +1791,7 @@
         const m = state.cutMap;
         const rawRadius = Math.hypot(snap.point[m.a] - state.pendingHole[m.a], snap.point[m.b] - state.pendingHole[m.b]);
         const radiusSnap = snapHoleRadius(rawRadius);
-        state.previewRadius = radiusSnap.radius;
+        state.previewRadius = state.radiusEntry ? Number(state.radiusEntry) : radiusSnap.radius;
         state.radiusSnap = radiusSnap.snap;
         document.getElementById('pinRadius').value = Math.max(0.1, state.previewRadius).toFixed(2);
       }
@@ -1816,6 +1817,24 @@
       }
       drawCutOverlay();
     });
+    function commitPendingHole(radius) {
+      if (!state.pendingHole) return false;
+      const safeRadius = Math.max(0.1, Number(radius) || 0.1);
+      const hole = state.pendingHole.slice();
+      hole.radius = safeRadius;
+      state.pins.push(hole);
+      state.selectedPin = -1;
+      document.getElementById('pinRadius').value = safeRadius.toFixed(2);
+      state.pendingHole = null;
+      state.previewRadius = null;
+      state.radiusEntry = '';
+      state.radiusSnap = null;
+      statusBox.textContent = `Added Hole ${state.pins.length}: radius ${safeRadius.toFixed(2)} mm.`;
+      drawPins();
+      drawCutOverlay();
+      renderOrbit();
+      return true;
+    }
     document.getElementById('cutCanvas').addEventListener('click', e => {
       if (state.placingCopy) {
         const safety = evaluateHoleSafety(state.placingCopy);
@@ -1872,22 +1891,17 @@
       if (!state.pendingHole) {
         state.pendingHole = snap.point.slice();
         state.previewRadius = 0;
+        state.radiusEntry = '';
+        statusBox.textContent = 'Type radius and press Enter, or drag/click to set the hole radius.';
       } else {
         const m = state.cutMap;
-        const radius = Math.max(0.1, Math.hypot(snap.point[m.a] - state.pendingHole[m.a], snap.point[m.b] - state.pendingHole[m.b]));
-        const hole = state.pendingHole.slice();
-        hole.radius = radius;
-        state.pins.push(hole);
-        state.selectedPin = -1;
-        document.getElementById('pinRadius').value = radius.toFixed(2);
-        state.pendingHole = null;
-        state.previewRadius = null;
-        state.radiusSnap = null;
+        const rawRadius = Math.hypot(snap.point[m.a] - state.pendingHole[m.a], snap.point[m.b] - state.pendingHole[m.b]);
+        const radius = state.previewRadius || rawRadius;
+        commitPendingHole(radius);
       }
       state.cursorPoint = p;
       state.snapPoint = null;
       state.snapGuides = [];
-      drawPins();
       drawCutOverlay();
     });
 
@@ -1902,6 +1916,7 @@
       state.selectedPin = -1;
       state.pendingHole = null;
       state.previewRadius = null;
+      state.radiusEntry = '';
       state.placingCopy = null;
       state.snapGuides = [];
       state.radiusSnap = null;
@@ -1992,6 +2007,38 @@
       if (!pinContextMenu.contains(e.target)) hidePinMenu();
     });
     window.addEventListener('keydown', e => {
+      const activeTag = document.activeElement && document.activeElement.tagName;
+      const typingInField = ['INPUT', 'SELECT', 'TEXTAREA'].includes(activeTag);
+      if (!typingInField && state.cutMode === 'point' && state.pendingHole) {
+        if (/^[0-9]$/.test(e.key) || e.key === '.') {
+          e.preventDefault();
+          if (e.key === '.' && state.radiusEntry.includes('.')) return;
+          state.radiusEntry += e.key;
+          const radius = Number(state.radiusEntry);
+          if (Number.isFinite(radius)) {
+            state.previewRadius = Math.max(0.1, radius);
+            document.getElementById('pinRadius').value = state.previewRadius.toFixed(2);
+            statusBox.textContent = `Radius: ${state.radiusEntry} mm. Press Enter to place.`;
+            drawCutOverlay();
+          }
+          return;
+        }
+        if (e.key === 'Backspace') {
+          e.preventDefault();
+          state.radiusEntry = state.radiusEntry.slice(0, -1);
+          state.previewRadius = state.radiusEntry ? Math.max(0.1, Number(state.radiusEntry) || 0.1) : 0;
+          document.getElementById('pinRadius').value = Math.max(0.1, state.previewRadius || 0.1).toFixed(2);
+          statusBox.textContent = state.radiusEntry ? `Radius: ${state.radiusEntry} mm. Press Enter to place.` : 'Type radius and press Enter, or drag/click to set the hole radius.';
+          drawCutOverlay();
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const radius = state.radiusEntry ? Number(state.radiusEntry) : state.previewRadius;
+          commitPendingHole(radius);
+          return;
+        }
+      }
       if (e.key !== 'Escape') return;
       const summaryModal = document.getElementById('summaryModal');
       if (summaryModal.style.display === 'grid') {
@@ -2002,6 +2049,7 @@
       state.placingCopy = null;
       state.pendingHole = null;
       state.previewRadius = null;
+      state.radiusEntry = '';
       state.pinDragging = false;
       state.pinInteraction = false;
       state.cutPanning = false;
@@ -2651,6 +2699,15 @@
     function stlStem() {
       return (state.fileName || pathInput.value || 'model.stl').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_') || 'model';
     }
+    function mmTag(value, digits = 2) {
+      return Number(value).toFixed(digits).replace(/-/, 'm');
+    }
+    function sizeTag(size) {
+      return size.map(v => mmTag(v, 1)).join('x');
+    }
+    function clearanceTag(clearance) {
+      return clearance === 0 ? 'clearance_0mm' : `clearance_+${Number(clearance).toFixed(2)}mm`;
+    }
 
     async function buildClientSplitPackage() {
       const axis = axisIndex[axisInput.value];
@@ -2679,22 +2736,23 @@
         }
       }
       const stem = stlStem();
-      const partAName = `${stem}_part_A.stl`;
-      const partBName = `${stem}_part_B.stl`;
       const radii = state.pins.map(p => holeRadius(p));
+      const buildVolume = [180, 180, 180];
+      const aSize = meshSize(split.negative);
+      const bSize = meshSize(split.positive);
+      const clearanceName = clearanceTag(clearance);
+      const partAName = `${stem}_part_A_${clearanceName}_size_${sizeTag(aSize)}mm.stl`;
+      const partBName = `${stem}_part_B_${clearanceName}_size_${sizeTag(bSize)}mm.stl`;
       const files = [
         { name: partAName, data: writeBinarySTL(split.negative, `${stem} part A`) },
         { name: partBName, data: writeBinarySTL(split.positive, `${stem} part B`) },
       ];
       const pinFiles = [];
       radii.forEach((radius, index) => {
-        const name = `${stem}_alignment_pin_${index + 1}.stl`;
+        const name = `${stem}_alignment_pin_${index + 1}_R${mmTag(radius)}mm_L${mmTag(pinLength)}mm.stl`;
         pinFiles.push(name);
         files.push({ name, data: writeBinarySTL(makePinMesh(radius, pinLength), `${stem} alignment pin ${index + 1}`) });
       });
-      const buildVolume = [180, 180, 180];
-      const aSize = meshSize(split.negative);
-      const bSize = meshSize(split.positive);
       const report = {
         input: state.fileName,
         mode: 'browser_static_v2_split_face_sockets',
