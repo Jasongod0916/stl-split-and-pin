@@ -2706,7 +2706,7 @@
       return size.map(v => mmTag(v, 1)).join('x');
     }
     function clearanceTag(clearance) {
-      return clearance === 0 ? 'clearance_0mm' : `clearance_+${Number(clearance).toFixed(2)}mm`;
+      return `C${Number(clearance).toFixed(2)}`;
     }
 
     async function buildClientSplitPackage() {
@@ -2741,15 +2741,15 @@
       const aSize = meshSize(split.negative);
       const bSize = meshSize(split.positive);
       const clearanceName = clearanceTag(clearance);
-      const partAName = `${stem}_part_A_${clearanceName}_size_${sizeTag(aSize)}mm.stl`;
-      const partBName = `${stem}_part_B_${clearanceName}_size_${sizeTag(bSize)}mm.stl`;
+      const partAName = `${stem}_A_${clearanceName}_${sizeTag(aSize)}.stl`;
+      const partBName = `${stem}_B_${clearanceName}_${sizeTag(bSize)}.stl`;
       const files = [
         { name: partAName, data: writeBinarySTL(split.negative, `${stem} part A`) },
         { name: partBName, data: writeBinarySTL(split.positive, `${stem} part B`) },
       ];
       const pinFiles = [];
       radii.forEach((radius, index) => {
-        const name = `${stem}_alignment_pin_${index + 1}_R${mmTag(radius)}mm_L${mmTag(pinLength)}mm.stl`;
+        const name = `${stem}_Pin${index + 1}_R${mmTag(radius)}_L${mmTag(pinLength)}.stl`;
         pinFiles.push(name);
         files.push({ name, data: writeBinarySTL(makePinMesh(radius, pinLength), `${stem} alignment pin ${index + 1}`) });
       });
